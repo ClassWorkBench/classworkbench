@@ -24,7 +24,6 @@
     ],
     "win": {
       "icon": "icon.ico",
-      "companyName": "ClassWorkBench",
       "target": "nsis"
     },
     "nsis": {
