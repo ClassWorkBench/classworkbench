@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="float-window">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>作业浮窗</title>
+    <!-- 浮窗与主窗口同源、无外部资源，CSP 收紧到 self（与 index.html 策略对齐） -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https: file:; connect-src 'self'; font-src 'self';">
+    <!-- 复用主窗口卡片样式：
+         base.css       → CSS 变量（--glass-bg / --glass-border / --card-padding ...）
+         components.css → .homework-card 本体 + body.blur-card-off（关闭卡片模糊的实色追色效果）
+         floating.css  → 仅浮窗专属的定位/拖拽/控件，不重复定义卡片外观 -->
+    <link rel="stylesheet" href="src/styles/base.css">
+    <link rel="stylesheet" href="src/styles/components.css">
+    <link rel="stylesheet" href="src/styles/floating.css">
+</head>
+<!-- blur-card-off：浮窗卡片直接采用主窗口"关闭卡片模糊"后的实色追色效果 -->
+<body class="blur-card-off">
+    <div class="homework-card float-card" id="floatCard" role="button" tabindex="0" aria-label="作业浮窗">
+        <!-- 浮窗操作组：⋯ 切换按钮 + 横向展开的三个操作按钮。
+             控件必须放在卡片内（拖拽卡片的后代），no-drag 才对 Electron 生效；
+             卡片在浮窗模式用 overflow:visible，控件超出卡片底也可显示。 -->
+        <div class="float-actions" id="floatActions">
+            <!-- 三个操作按钮横向容器：默认 display:none，避免 no-drag 矩形挖死区。
+                 展开时 display:flex + 强制 reflow + 下一帧加 .shown 触发 transition。 -->
+            <div class="float-actions-row" id="floatActionsRow" role="group" aria-label="浮窗操作">
+                <button class="f-act f-dock" id="fDockBtn" type="button" title="贴边隐藏" aria-label="贴边隐藏"><img class="emoji" src="emoji/pushpin_color.svg" alt="📌"></button>
+                <button class="f-act f-exit" id="fExitAllBtn" type="button" title="退出浮窗模式" aria-label="退出浮窗模式"><img class="emoji" src="emoji/eject_button_color.svg" alt="⏏"></button>
+            </div>
+            <!-- ⋯/✕ 切换按钮：默认 ⋯，展开后旋转切换为 ✕ -->
+            <button class="float-ctrl" id="floatCtrl" type="button" aria-label="浮窗操作" aria-haspopup="menu" aria-expanded="false">
+                <span class="ctrl-icon ctrl-more">⋯</span>
+                <span class="ctrl-icon ctrl-close">✕</span>
+            </button>
+        </div>
+        <div class="card-inner float-card-inner" id="floatCardInner">
+            <div class="card-subject" id="floatSubject"></div>
+            <div class="card-content" id="floatContent"></div>
+        </div>
+    </div>
+    <!-- 贴边探头：必须是 body 直接子元素（float-card 在探头模式下 display:none，
+         若探头在其内部会一起被隐藏，导致贴边后看不见） -->
+    <div class="float-probe" id="floatProbe" role="button" tabindex="0" aria-label="滑出浮窗">›</div>
+    <script src="src/scripts/floating-window.js"></script>
+</body>
+</html>

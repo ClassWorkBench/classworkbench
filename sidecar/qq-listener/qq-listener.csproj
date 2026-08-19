@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+    <SupportedOSPlatformVersion>10.0.19041.0</SupportedOSPlatformVersion>
+    <RootNamespace>QQListener</RootNamespace>
+    <AssemblyName>qq-listener</AssemblyName>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+
+    <!-- NativeAOT：单文件 exe，无需 .NET 运行时 -->
+    <PublishAot>true</PublishAot>
+    <InvariantGlobalization>false</InvariantGlobalization>
+    <TrimMode>full</TrimMode>
+    <StackTraceSupport>false</StackTraceSupport>
+
+    <!-- 版本信息 -->
+    <Version>1.0.0</Version>
+    <Company>ClassWorkBench</Company>
+    <Product>ClassWorkBench QQ Listener Sidecar</Product>
+  </PropertyGroup>
+
+</Project>

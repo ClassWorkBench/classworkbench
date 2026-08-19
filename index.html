@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>班级工作台</title>
+
+    <!-- 样式按依赖顺序加载：基础 -> 布局 -> 组件 -> 动画/响应式 -->
+    <link rel="stylesheet" href="src/styles/base.css">
+    <link rel="stylesheet" href="src/styles/layout.css">
+    <link rel="stylesheet" href="src/styles/components.css">
+    <link rel="stylesheet" href="src/styles/animations.css">
+    <link rel="stylesheet" href="src/styles/floating.css">
+    <link rel="stylesheet" href="src/styles/wizard.css">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https: file:; connect-src 'self' https://api.open-meteo.com https://geocoding-api.open-meteo.com https://*.qweatherapi.com https://tu.ltyuanfang.cn https://wp.upx8.com https://v2.xxapi.cn; font-src 'self';">
+</head>
+<body>
+    <!-- 背景层 -->
+    <div class="bg-layer" id="bgLayer"></div>
+    <div class="bg-mask" id="bgMask"></div>
+
+    <!-- 自定义窗口控制 -->
+    <div class="window-controls" id="windowControls">
+        <button class="window-control-btn window-close" id="windowClose" aria-label="关闭" title="关闭">
+            <svg viewBox="0 0 16 16" aria-hidden="true">
+                <path d="M4.5 4.5l7 7M11.5 4.5l-7 7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+            </svg>
+        </button>
+    </div>
+
+    <div class="toast-container" id="toastContainer"></div>
+
+    <!-- 顶栏胶囊（固定） -->
+    <div class="top-capsule" id="topCapsule">
+        <div class="clock-area" id="clockDisplay" aria-live="polite">--:--</div>
+        <div class="evening-progress" id="eveningProgress" aria-label="晚修进度">
+            <div class="progress-info">
+                <span id="eveningLabel"><img class="emoji" src="emoji/crescent_moon_color.svg" alt="🌙"> 未在晚修</span>
+                <span id="eveningTime">--</span>
+            </div>
+            <div class="progress-bar-bg" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" id="progressBar">
+                <div class="progress-bar-fill" id="progressFill" style="width:0%"></div>
+            </div>
+        </div>
+        <div class="weather-area" id="weatherDisplay" aria-live="polite">
+            <span class="weather-area-name" id="weatherAreaName">--</span>
+            <span class="weather-emoji" id="weatherEmoji"><img class="emoji" src="emoji/sun_color.svg" alt="☀️"></span>
+            <span class="weather-temp" id="weatherTemp">--°C</span>
+            <span class="weather-desc" id="weatherDesc">--</span>
+        </div>
+        <div class="alert-area" id="alertCapsule" style="display:none;" role="button" tabindex="0" aria-label="天气预警">
+            <span class="alert-dot" id="alertDot"></span>
+            <span class="alert-text" id="alertText"></span>
+            <span class="alert-count" id="alertCount" style="display:none;"></span>
+        </div>
+        <!-- 浮窗模式状态：与顶栏同一层的内嵌胶囊（不突出来一块） -->
+        <div class="float-banner" id="floatBanner" style="display:none;" role="status">
+            <span><img class="emoji" src="emoji/window_color.svg" alt="🪟"> 浮窗：<b id="floatCount">0</b></span>
+            <button class="btn" id="floatExitBtn" type="button">退出浮窗</button>
+        </div>
+    </div>
+
+    <!-- 作业卡片网格 -->
+    <div class="cards-grid" id="cardsGrid" role="list"></div>
+
+    <!-- 底栏 -->
+    <div class="bottom-capsule" id="bottomCapsule">
+        <button class="dp-arrow" id="dpPrev" aria-label="前一天">‹</button>
+        <button class="date-btn" id="dateBtn" aria-label="选择日期"><img class="emoji" src="emoji/calendar_color.svg" alt="📅"> <span id="dateText"></span></button>
+        <button class="dp-arrow" id="dpNext" aria-label="后一天">›</button>
+        <div class="subject-pills" id="subjectPills" role="tablist"></div>
+        <button class="more-toggle" id="moreToggle" aria-label="更多功能" aria-haspopup="menu" aria-expanded="false" title="更多功能">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M6 14.5l6-6 6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+        </button>
+    </div>
+
+    <!-- 更多功能上拉菜单 -->
+    <div class="more-sheet" id="moreSheet">
+        <div class="more-sheet-panel" id="moreSheetPanel" role="menu" aria-label="更多功能">
+            <button class="more-item" id="exportImageBtn" type="button" role="menuitem">
+                <span class="more-item-icon" aria-hidden="true"><img class="emoji" src="emoji/framed_picture_color.svg" alt="🖼️"></span>
+                <span class="more-item-label">复制排版图</span>
+            </button>
+            <button class="more-item" id="floatModeBtn" type="button" role="menuitem">
+                <span class="more-item-icon" aria-hidden="true"><img class="emoji" src="emoji/window_color.svg" alt="🪟"></span>
+                <span class="more-item-label">浮窗</span>
+            </button>
+            <button class="more-item" id="openSettingsBtn" type="button" role="menuitem">
+                <span class="more-item-icon" aria-hidden="true"><img class="emoji" src="emoji/gear_color.svg" alt="⚙️"></span>
+                <span class="more-item-label">设置</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- 模态容器 -->
+    <div id="modalRoot"></div>
+
+    <!-- 脚本按依赖顺序加载 -->
+    <!-- 脚本按依赖顺序加载，请勿调整顺序：config → state → utils → storage → styling → weather → background → layout → renderer → modal → dialogs → archive-renderer → homework-engine → qq-pending-dialog → settings → wizard → more-menu → datepicker → main -->
+    <script src="emoji/emoji-map.js"></script>
+    <script src="src/scripts/config.js"></script>
+    <script src="src/scripts/state.js"></script>
+    <script src="src/scripts/utils.js"></script>
+    <script src="src/scripts/storage.js"></script>
+    <script src="src/scripts/styling.js"></script>
+    <script src="src/scripts/weather.js"></script>
+    <script src="src/scripts/background.js"></script>
+    <script src="src/scripts/layout.js"></script>
+    <script src="src/scripts/renderer.js"></script>
+    <script src="src/scripts/modal.js"></script>
+    <script src="src/scripts/dialogs.js"></script>
+    <script src="src/scripts/color-picker.js"></script>
+    <script src="src/scripts/archive-renderer.js"></script>
+    <script src="src/scripts/homework-engine.js"></script>
+    <script src="src/scripts/qq-pending-dialog.js"></script>
+    <script src="src/scripts/settings/general.js"></script>
+    <script src="src/scripts/settings/weather.js"></script>
+    <script src="src/scripts/settings/personal.js"></script>
+    <script src="src/scripts/settings/accessibility.js"></script>
+    <script src="src/scripts/settings/subjects.js"></script>
+    <script src="src/scripts/settings/qq.js"></script>
+    <script src="src/scripts/settings/data.js"></script>
+    <script src="src/scripts/settings/about.js"></script>
+    <script src="src/scripts/settings/nav.js"></script>
+    <script src="src/scripts/backup.js"></script>
+    <script src="src/scripts/settings.js"></script>
+    <script src="src/scripts/wizard.js"></script>
+    <script src="src/scripts/floating-mode.js"></script>
+    <script src="src/scripts/more-menu.js"></script>
+    <script src="src/scripts/window-controls.js"></script>
+    <script src="src/scripts/datepicker.js"></script>
+    <script src="src/scripts/main.js"></script>
+</body>
+</html>

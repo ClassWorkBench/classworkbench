@@ -1,0 +1,320 @@
+/* ============================================
+ * floating.css
+ * 浮窗窗口（floating.html 专用）+ 主窗口浮窗模式动画/横幅
+ * 卡片外观由 base.css / components.css 提供，本文件只负责浮窗专属的
+ * 定位、系统级拖拽与操作控件。
+ * ============================================ */
+
+/* ---------- 浮窗窗口（透明底，卡片样式=主窗口） ---------- */
+/* 浮窗窗口必须透明（圆角卡片阴影才透得出来），这里强制复位 base.css 的不透明底。
+   ⚠️ 作用域限定 html.float-window：本文件同时被主窗口加载，全局覆盖会破坏主窗口布局。 */
+html.float-window,
+html.float-window body {
+    margin: 0;
+    padding: 0;
+    min-height: auto;
+    display: block;
+    background: transparent;
+    overflow: hidden;
+    height: 100%;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+    user-select: none;
+    -webkit-user-select: none;
+    animation: floatFadeIn 0.3s ease;
+}
+/* 给浮窗 body 定位上下文：.float-probe 是 absolute，top:0/bottom:0 需要相对 body 拉伸高度 */
+html.float-window body {
+    position: relative;
+}
+html.float-window body.fade-out {
+    animation: none;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+@keyframes floatFadeIn {
+    from { opacity: 0; transform: scale(0.96); }
+    to   { opacity: 1; transform: scale(1); }
+}
+
+/* 卡片本体：外观交给 .homework-card，这里只负责浮窗专属的"内容自适应高度 + 系统级拖拽"
+   ⚠️ cursor 统一为 default：系统级 -webkit-app-region: drag 生效时 Chromium 会忽略 CSS cursor，
+   一旦 Chromium 的 drag 注册异常失效，grab 巴掌光标就会暴露出来（"能看见巴掌但拖不动"）。
+   用 default 让光标始终保持系统箭头，视觉与可拖动性一致。 */
+.float-card {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    right: 12px;
+    height: auto;
+    min-height: 0;
+    margin: 0;
+    cursor: default;
+    outline: none;
+    -webkit-app-region: drag;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+}
+.float-card:active {
+    transform: none;
+}
+/* 放开 overflow 让菜单可超出卡片底显示 */
+.homework-card.float-card {
+    overflow: visible;
+}
+
+/* 内容区：按内容自然高度，随整卡一起拖动 */
+.float-card-inner {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    flex: 0 0 auto;
+    min-height: 0;
+}
+
+/* 卡片内部文字直接复用主窗口 components.css 样式，不重复定义 */
+
+/* ---------- 浮窗操作组（⋯ 切换 + 横向展开三个按钮） ----------
+   ⚠️ 关键约束：
+   1. 三个按钮容器 .float-actions-row 默认必须 display:none —— Chromium 的
+      -webkit-app-region 命中测试基于元素布局矩形，不受 opacity / pointer-events 影响。
+      若默认 display:flex（即使 opacity:0 不可见），按钮矩形仍会被注册为 no-drag 区域，
+      从卡片可拖动列表里挖掉一块"按钮周围约 1cm 拖不动"的死区。
+   2. 展开时 display:flex + 强制 reflow + 下一帧加 .shown 触发 opacity/transform transition，
+      否则 display 切换会让 transition 失效（瞬间出现/消失）。
+   3. 关闭时等 transition 结束再 display:none，hideTimer 兜底防止反复开关时提前隐藏。
+*/
+.float-actions {
+    position: absolute;
+    top: 16px;
+    right: 18px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    z-index: 10;
+    -webkit-app-region: no-drag;
+}
+
+/* ⋯ / ✕ 切换按钮：始终可见，图标叠加旋转切换 */
+.float-ctrl {
+    position: relative;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(0, 0, 0, 0.05);
+    color: #666;
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+    flex-shrink: 0;
+    overflow: hidden;
+    -webkit-app-region: no-drag;
+    transition: background 0.2s ease, color 0.2s ease;
+}
+.float-ctrl:hover,
+.float-ctrl.open {
+    background: rgba(0, 0, 0, 0.12);
+    color: #1a1a1a;
+}
+
+/* ⋯ 与 ✕ 两个图标叠加，旋转+缩放过渡切换 */
+.float-ctrl .ctrl-icon {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: opacity 0.25s ease,
+                transform 0.3s var(--transition-spring, cubic-bezier(0.34, 1.56, 0.64, 1));
+}
+.float-ctrl .ctrl-close {
+    opacity: 0;
+    transform: rotate(-90deg) scale(0.4);
+}
+.float-ctrl.open .ctrl-more {
+    opacity: 0;
+    transform: rotate(90deg) scale(0.4);
+}
+.float-ctrl.open .ctrl-close {
+    opacity: 1;
+    transform: rotate(0) scale(1);
+}
+
+/* 三个按钮的横向容器：默认 display:none，避免 no-drag 死区 */
+.float-actions-row {
+    display: none;
+    align-items: center;
+    gap: 4px;
+    -webkit-app-region: no-drag;
+}
+.float-actions.open .float-actions-row {
+    display: flex;
+}
+
+/* 单个操作按钮 */
+.f-act {
+    flex-shrink: 0;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(0, 0, 0, 0.05);
+    color: #666;
+    font-size: 13px;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transform: translateX(20px) scale(0.5);
+    transition: opacity 0.22s ease,
+                transform 0.28s var(--transition-spring, cubic-bezier(0.34, 1.56, 0.64, 1)),
+                background 0.2s ease, color 0.2s ease;
+}
+/* 展开态：按钮显现归位（错开 delay 制造依次入场） */
+.float-actions.shown .f-act {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+}
+.float-actions.shown .f-act:nth-child(1) { transition-delay: 0.04s; }
+.float-actions.shown .f-act:nth-child(2) { transition-delay: 0.10s; }
+
+.f-act:hover {
+    background: rgba(0, 0, 0, 0.12);
+    color: #1a1a1a;
+}
+.f-act .emoji {
+    width: 16px;
+    height: 16px;
+    pointer-events: none;
+}
+.f-exit { color: #2d3e8e; }
+.f-exit:hover { background: rgba(45, 62, 142, 0.10); color: #2d3e8e; }
+
+.float-error {
+    position: absolute;
+    inset: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #fff;
+    color: #666;
+    border-radius: 24px;
+    font-size: 14px;
+}
+
+/* ---------- 贴边探头模式 ---------- */
+/* 贴边后窗口收缩为探头宽度并完全保持在屏幕内（移出屏幕 Chromium 不渲染），卡片隐藏只显示探头条 */
+.float-probe {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 26px;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-size: 18px;
+    font-weight: 700;
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-app-region: no-drag;
+    /* 1px 玻璃白边框 + 卡片同款阴影 */
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--card-shadow);
+    transition: background 0.2s ease, filter 0.2s ease;
+}
+.float-probe:hover {
+    filter: brightness(1.1);
+}
+/* ⚠️ 不得使用 display:none —— Chromium 会把 display:none 的元素从 -webkit-app-region 可拖动
+   列表中直接移除，展开后在"类切换 + transform transition"的竞态下，drag 区域常常不会重新注册，
+   表现为"展开后卡片变巴掌（grab cursor 生效暴露）但实际拖不动"。
+   改用 visibility + opacity + pointer-events 视觉上完全等效且不破坏 drag 区域注册。 */
+.probe-mode .float-card {
+    visibility: hidden;
+    opacity: 0;
+    pointer-events: none;
+}
+.probe-mode .float-probe { display: flex; }
+.probe-left .float-probe {
+    left: 0;
+    border-radius: 0 13px 13px 0;   /* 13 = 宽 26 的一半，上下拼成半圆 → 胶囊形 */
+}
+.probe-right .float-probe {
+    right: 0;
+    border-radius: 13px 0 0 13px;
+}
+
+/* ---------- 贴边收起/展开：内容过渡（双泳道的内容泳道，GPU 合成） ---------- */
+/* 收起：卡片缩成彩条（transition 可中断/反向，快速往返不撕裂） */
+.float-card.probe-shrink {
+    transform: scale(0.08);
+    border-radius: 13px;
+    background: var(--subject-accent, #5b6abf);
+    box-shadow: none;
+    opacity: 1;
+    transition: transform 0.18s cubic-bezier(0.7, 0, 0.3, 1),
+                border-radius 0.18s cubic-bezier(0.7, 0, 0.3, 1),
+                background-color 0.18s cubic-bezier(0.7, 0, 0.3, 1),
+                box-shadow 0.18s cubic-bezier(0.7, 0, 0.3, 1);
+}
+/* 展开：从彩条弹回卡片（spring 回弹，与 --transition-spring 一致） */
+.float-card.probe-grow {
+    transition: transform 0.26s var(--transition-spring, cubic-bezier(0.34, 1.56, 0.64, 1)),
+                border-radius 0.26s var(--transition-spring, cubic-bezier(0.34, 1.56, 0.64, 1)),
+                background-color 0.26s var(--transition-spring, cubic-bezier(0.34, 1.56, 0.64, 1)),
+                box-shadow 0.26s var(--transition-spring, cubic-bezier(0.34, 1.56, 0.64, 1));
+}
+/* 收缩方向：贴左 → 从左侧揉成彩条；贴右 → 从右侧揉成彩条 */
+.probe-left .float-card { transform-origin: left center; }
+.probe-right .float-card { transform-origin: right center; }
+/* 探头出现：轻微弹出（收尾时接管彩条） */
+.probe-mode .float-probe {
+    animation: probePop 0.14s ease-out;
+}
+@keyframes probePop {
+    from { opacity: 0; transform: scale(0.6); }
+    to   { opacity: 1; transform: scale(1); }
+}
+
+/* ---------- 主窗口：浮窗模式动画 ---------- */
+/* 进入：卡片纯渐出（不改样式、不移动、不缩放） */
+.homework-card.float-leaving {
+    animation: none !important;
+    opacity: 0 !important;
+    transition: opacity 0.32s ease !important;
+    pointer-events: none;
+}
+
+/* 浮窗模式状态：顶栏内嵌胶囊（与顶栏同一层，不突出来） */
+.float-banner {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px 4px 12px;
+    background: rgba(255, 255, 255, 0.4);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-capsule, 34px);
+    font-size: 0.78rem;
+    color: var(--text-primary);
+    white-space: nowrap;
+}
+.float-banner b { color: var(--accent); }
+.float-banner .btn {
+    padding: 3px 10px;
+    font-size: 0.72rem;
+    margin-left: 0;
+    border-radius: var(--radius-btn, 30px);
+}
+
+/* ---------- 探头淡化（变成小探头后 3 秒） ---------- */
+#floatProbe {
+    transition: opacity 0.5s ease;
+}
+#floatProbe.probe-faded {
+    opacity: 0.25;
+}

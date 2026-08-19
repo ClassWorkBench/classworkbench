@@ -1,0 +1,95 @@
+/* ============================================
+ * base.css
+ * CSS 变量、全局重置、自定义滚动条、body 基础
+ * ============================================ */
+
+:root {
+    --font-size-content: 26px;
+    --radius-capsule: 34px;
+    --radius-card: 24px;
+    --radius-btn: 30px;
+    --transition-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+    --transition-smooth: cubic-bezier(0.4, 0, 0.2, 1);
+    --bg-body: #fafaf7;
+    --text-primary: #1a1a1a;
+    --text-secondary: #333333;
+    --text-muted: #666666;
+    --glass-bg: rgba(255, 255, 255, 0.45);
+    --glass-border: rgba(255, 255, 255, 0.4);
+    --card-shadow: 0 12px 32px -10px rgba(0, 0, 0, 0.08), 0 4px 12px rgba(0, 0, 0, 0.02);
+    --card-shadow-hover: 0 20px 48px -14px rgba(0, 0, 0, 0.14), 0 6px 18px rgba(0, 0, 0, 0.04);
+    --accent: #2d3e8e;
+    --accent-light: #4a5db0;
+    --accent-rgb: 45, 62, 142;
+    --progress-bg: rgba(0, 0, 0, 0.07);
+    /* Toast 改为白色亚克力，与弹窗同质感 */
+    --toast-bg: rgba(255, 255, 255, 0.72);
+    --toast-text: var(--text-primary);
+    --toast-border: rgba(255, 255, 255, 0.6);
+    /* 焦点环独立变量：中性蓝，不抢 accent 的"主要操作"语义 */
+    --focus-ring: #3b82f6;
+    --focus-ring-rgb: 59, 130, 246;
+    /* 柔和发光（多层渐变模拟自然光衰减）—— 内层窄亮、中层过渡、外层淡散 */
+    --glow-focus: 0 0 0 1px rgba(var(--focus-ring-rgb), 0.55),
+                 0 0 4px 1px rgba(var(--focus-ring-rgb), 0.22),
+                 0 0 10px 2px rgba(var(--focus-ring-rgb), 0.10);
+    --glow-accent: 0 0 0 1px rgba(var(--accent-rgb), 0.42),
+                  0 0 6px 1px rgba(var(--accent-rgb), 0.22),
+                  0 0 14px 3px rgba(var(--accent-rgb), 0.12);
+    --glow-accent-strong: 0 0 0 1px rgba(var(--accent-rgb), 0.50),
+                         0 0 8px 2px rgba(var(--accent-rgb), 0.28),
+                         0 0 18px 4px rgba(var(--accent-rgb), 0.15);
+    --glow-danger: 0 0 0 1px rgba(230, 68, 68, 0.45),
+                   0 0 5px 1px rgba(230, 68, 68, 0.20),
+                   0 0 12px 2px rgba(230, 68, 68, 0.10);
+    --glow-success: 0 0 0 1px rgba(74, 184, 122, 0.45),
+                    0 0 5px 1px rgba(74, 184, 122, 0.20),
+                    0 0 12px 2px rgba(74, 184, 122, 0.10);
+    --card-padding: 20px 20px 16px;
+    --mask-opacity: 0.15;
+    --scrollbar-thumb: #a8a8b0;
+}
+
+/* 全局重置 */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+/* 自定义滚动条 —— 2px 超细指示器风格 */
+::-webkit-scrollbar {
+    width: 2px;
+    height: 2px;
+}
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb);
+    border-radius: 2px;
+}
+* {
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar-thumb) transparent;
+}
+
+html {
+    height: 100%;
+}
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+    color: var(--text-primary);
+    min-height: 100vh;
+    padding: 80px 14px 100px;
+    transition: color 0.5s var(--transition-smooth), padding-top 0.3s;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    overflow-x: hidden;
+    overflow-y: auto;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-font-smoothing: antialiased;
+    background-color: var(--bg-body);
+    background-image: radial-gradient(rgba(0, 0, 0, 0.06) 1px, transparent 1px);
+    background-size: 20px 20px;
+    background-position: center;
+    background-repeat: repeat;
+}

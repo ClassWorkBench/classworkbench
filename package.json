@@ -1,0 +1,53 @@
+{
+  "name": "classworkbench",
+  "version": "1.0.0",
+  "description": "班级工作台 —— 面向班级教学场景的桌面应用：作业管理、学科配色、天气预警、QQ 通知捕获、画中画浮窗。本地优先，MIT 开源。",
+  "author": "ClassWorkBench Authors",
+  "main": "main.js",
+  "scripts": {
+    "dev": "electron .",
+    "build": "electron-builder"
+  },
+  "build": {
+    "appId": "com.classworkbench.app",
+    "productName": "班级工作台",
+    "files": [
+      "**/*",
+      "!sidecar/**/*",
+      "!dist/**/*",
+      "!.workbuddy/**/*",
+      "!docs/**/*",
+      "!CODE_WIKI.md",
+      "!UNINSTALL_DATA_CLEANUP.md",
+      "!test.bat",
+      "!promo/**/*"
+    ],
+    "win": {
+      "icon": "icon.ico",
+      "companyName": "ClassWorkBench",
+      "target": "nsis"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "include": "cwb-uninstaller.nsh"
+    },
+    "extraResources": [
+      {
+        "from": "sidecar/qq-listener/bin/Release/net8.0-windows10.0.19041.0/win-x64/publish",
+        "to": "sidecar",
+        "filter": [
+          "qq-listener.exe"
+        ]
+      }
+    ]
+  },
+  "dependencies": {
+    "atomically": "^2.0.3",
+    "electron-log": "^5.2.0"
+  },
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.0.0"
+  }
+}

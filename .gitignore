@@ -1,0 +1,23 @@
+# 依赖与构建产物
+node_modules/
+dist/
+release/
+
+# 打包日志
+*.log
+
+# sidecar 构建产物（源码在 sidecar/，发布输出不提交）
+sidecar/**/bin/
+sidecar/**/obj/
+sidecar/**/publish/
+sidecar/*.exe
+qq-listener.exe
+
+# 本地工作区（Agent 生成物，勿提交）
+.workbuddy/
+
+# 系统/编辑器
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

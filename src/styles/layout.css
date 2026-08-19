@@ -1,0 +1,174 @@
+/* ============================================
+ * layout.css
+ * 背景层、顶栏胶囊、底栏胶囊、卡片网格整体布局
+ * ============================================ */
+
+/* 背景层：开屏由 body 显示米白点阵纸，云端图加载到 .bg-layer 后渐入覆盖 */
+.bg-layer {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    background: linear-gradient(150deg, #eef2f0 0%, #f6f1ea 48%, #e6edf4 100%);
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    opacity: 1;
+    transition: opacity 0.9s ease;
+    will-change: opacity;
+    pointer-events: none;
+}
+.bg-layer.loaded {
+    opacity: 1;
+}
+
+.bg-mask {
+    position: fixed;
+    inset: 0;
+    z-index: 1;
+    background-color: rgba(0, 0, 0, var(--mask-opacity));
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.9s ease;
+}
+/* 仅在云端壁纸加载完成后才显示遮罩，避免点阵纸开屏阶段被压暗 */
+body:has(.bg-layer.loaded) .bg-mask {
+    opacity: 1;
+}
+
+.window-controls {
+    position: fixed;
+    top: 10px;
+    right: 12px;
+    z-index: 200;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding: 6px;
+    border-radius: var(--radius-capsule);
+    background: var(--glass-bg);
+    backdrop-filter: blur(16px) saturate(1.15);
+    -webkit-backdrop-filter: blur(16px) saturate(1.15);
+    border: 1px solid var(--glass-border);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.06);
+    -webkit-app-region: drag;
+}
+.window-control-btn {
+    width: 36px;
+    height: 36px;
+    border: none;
+    background: transparent;
+    border-radius: 50%;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background 0.2s var(--transition-smooth), color 0.2s, transform 0.15s;
+    -webkit-app-region: no-drag;
+}
+.window-control-btn svg {
+    width: 16px;
+    height: 16px;
+}
+.window-control-btn:hover {
+    background: rgba(0, 0, 0, 0.06);
+    color: var(--text-primary);
+}
+.window-control-btn:active {
+    transform: scale(0.9);
+}
+.window-control-btn.window-close:hover {
+    background: #d45a5a;
+    color: #fff;
+}
+
+.top-capsule,
+.cards-grid,
+.bottom-capsule,
+.toast-container,
+#modalRoot {
+    position: relative;
+    z-index: 2;
+}
+
+/* 顶栏胶囊 */
+.top-capsule {
+    position: fixed;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 60;
+    background: var(--glass-bg);
+    backdrop-filter: blur(16px) saturate(1.15);
+    -webkit-backdrop-filter: blur(16px) saturate(1.15);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-capsule);
+    padding: 12px 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.06);
+    transition: all 0.4s var(--transition-smooth);
+    flex-wrap: wrap;
+    width: auto;
+    max-width: 94vw;
+    -webkit-app-region: drag;
+}
+.top-capsule button,
+.top-capsule select,
+.top-capsule input {
+    -webkit-app-region: no-drag;
+}
+
+/* 卡片网格 —— 瀑布流自适应 */
+.cards-grid {
+    columns: 2;
+    column-gap: 14px;
+    padding-bottom: 6px;
+    margin-top: 0;
+    transition: margin-top 0.3s, opacity 0.2s ease;
+}
+.cards-grid.cols-3 {
+    columns: 3;
+}
+.cards-grid.fading {
+    opacity: 0;
+}
+@media (max-width: 700px) {
+    .cards-grid.cols-3 {
+        columns: 2;
+    }
+}
+@media (max-width: 500px) {
+    .cards-grid,
+    .cards-grid.cols-3 {
+        columns: 1;
+    }
+}
+
+/* 底栏胶囊 */
+.bottom-capsule {
+    position: fixed;
+    bottom: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 70;
+    background: var(--glass-bg);
+    backdrop-filter: blur(16px) saturate(1.15);
+    -webkit-backdrop-filter: blur(16px) saturate(1.15);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-capsule);
+    padding: 8px 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.06);
+    width: fit-content;
+    max-width: 94vw;
+    overflow-x: auto;
+    transition: all 0.4s var(--transition-smooth);
+    scrollbar-width: none;
+}
+.bottom-capsule::-webkit-scrollbar {
+    display: none;
+}
