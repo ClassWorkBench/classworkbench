@@ -21,3 +21,5 @@ qq-listener.exe
 Thumbs.db
 .vscode/
 .idea/
+# GitHub Pages 部署工作区（独立仓库 classworkbench-site，不进主仓库）
+.pages-dist/
