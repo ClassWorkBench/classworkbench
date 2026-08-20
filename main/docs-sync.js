@@ -76,13 +76,11 @@ function createDocsSync({ app, fs, path, crypto, net, log }) {
         fs.renameSync(tmp, metaPath());
     }
 
-    /**
-     * 读取某文档当前生效内容：在线缓存优先，无缓存回退随应用分发的源文件。
-     * renderer 调用 readDoc(name) 即走此函数 → 天然展示"最新"。
-     */
+    // ---- 读取某文档当前生效内容：在线缓存优先，无缓存回退随应用分发的源文件 ----
     function readDoc(name) {
         const file = DOC_FILES[name];
         if (!file) return null;
+        // 原子写 + 损坏容错：缓存文件读取失败（半写损坏等）时回退随包文件
         try {
             return fs.readFileSync(contentPath(name), 'utf8');
         } catch (_) {
@@ -146,10 +144,12 @@ function createDocsSync({ app, fs, path, crypto, net, log }) {
                 if (!got) { failed.push(name); return; }
                 const hash = crypto.createHash('sha256').update(got.content, 'utf8').digest('hex');
                 const old = prevMeta && prevMeta[name];
-                // 写入内容 + 更新元信息
+                // 原子写（tmp + rename）：进程在写一半退出也不会留损坏缓存
                 const dir = cacheDir();
                 if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-                fs.writeFileSync(contentPath(name), got.content, 'utf8');
+                const tmp = `${contentPath(name)}.tmp-${Date.now()}`;
+                fs.writeFileSync(tmp, got.content, 'utf8');
+                fs.renameSync(tmp, contentPath(name));
                 prevMeta[name] = { hash, fetchedAt: Date.now(), source: got.source };
                 effective[name] = prevMeta[name];
                 if (!old || old.hash !== hash) {

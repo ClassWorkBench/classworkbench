@@ -79,8 +79,31 @@ function generateKeyPair() {
  * @param {object} opts { net, log }
  */
 function createQweatherClient({ net, log }) {
+    // JWT 令牌缓存：同一配置（kid/sub/私钥）下，距离 exp 仍有足够余量时复用，
+    // 避免 15 分钟窗口内每次刷新都重复签名。
+    let cached = null;   // { cfgKey, token, expiresAt }
+
+    function cfgKey(cfg) {
+        return `${cfg.kid}|${cfg.sub}|${(cfg.privateKey || '').length}`;
+    }
+
+    /**
+     * 获取令牌；60 秒冷启动窗口不缓存（首次尽快用上）。
+     * 距 exp 剩余 <= 120s 时重新签名（和风 exp 最长 24h，这里 ttl 900s）。
+     */
+    function getToken(cfg) {
+        const now = Date.now();
+        if (cached && cached.cfgKey === cfgKey(cfg) && cached.expiresAt - now > 120 * 1000) {
+            return cached.token;
+        }
+        const token = generateToken(cfg);
+        cached = { cfgKey: cfgKey(cfg), token, expiresAt: now + TOKEN_TTL_SECONDS * 1000 };
+        return token;
+    }
+
     /**
      * 发起一次携带 JWT 认证头的 GET 请求。
+     * 403（token 失效/被拒）时：作废缓存重新签名重试一次。
      * @param {object} args
      * @param {string} args.host   和风专属 API Host（如 abc.qweatherapi.com）
      * @param {object} args.cfg    { kid, sub, privateKey }
@@ -91,12 +114,20 @@ function createQweatherClient({ net, log }) {
     async function get({ host, cfg, endpoint, query }) {
         if (!host || !cfg || !endpoint) throw new Error('NO_CONFIG');
         const cleanHost = host.replace(/^https?:\/\//, '').replace(/\/$/, '');
-        const token = generateToken(cfg);
         const qs = new URLSearchParams(query || {});
         const url = `https://${cleanHost}${endpoint}${qs.toString() ? '?' + qs.toString() : ''}`;
-        const resp = await net.fetch(url, {
+
+        const doFetch = (token) => net.fetch(url, {
             headers: { Authorization: `Bearer ${token}` }
         });
+
+        let resp = await doFetch(getToken(cfg));
+        if (resp.status === 403) {
+            // 令牌被判失效：作废缓存，重签再试一次
+            log.warn('[qweather] 收到 403，作废 JWT 缓存并重签重试');
+            cached = null;
+            resp = await doFetch(generateToken(cfg));
+        }
         if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
         return resp.json();
     }
