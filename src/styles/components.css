@@ -1275,6 +1275,8 @@ textarea:hover::-webkit-resizer {
     z-index: 9999;
     display: flex;
     flex-direction: column;
+    /* 每个 Toast 按自身内容收缩宽度，居中堆叠，避免被最长的一条横向拉长 */
+    align-items: center;
     pointer-events: none;
     width: fit-content;
     max-width: 90vw;
@@ -2730,16 +2732,23 @@ body.blur-modal-off #modalRoot .dialog {
     background: rgba(255, 255, 255, 0.96);
 }
 
-/* ---- 减弱动画效果：全局压缩 transition / animation 时长 ---- */
-body.reduce-anim,
-body.reduce-anim *,
-body.reduce-anim *::before,
-body.reduce-anim *::after {
-    transition-duration: 0.02s !important;
-    transition-delay: 0s !important;
-    animation-duration: 0.05s !important;
-    animation-delay: 0s !important;
-    animation-iteration-count: 1 !important;
+/* ---- 减弱动画效果：iOS 式淡入淡出 ----
+   非减弱不干预。减弱时：把"弹跳感"入场/出场动画的位移、缩放去掉，
+   只保留柔和淡入淡出（真实减小运动，而不是"瞬间切换"那种生硬加快）。 */
+body.reduce-anim .homework-card.card-enter,
+body.reduce-anim .homework-card.card-leaving,
+body.reduce-anim .dialog,
+body.reduce-anim .dialog.closing,
+body.reduce-anim .toast,
+body.reduce-anim .settings-panel {
+    transform: none !important;
+    animation-duration: 0.35s !important;
+    animation-timing-function: ease-out !important;
+}
+/* 对话框 max-width/max-height 切换等自身过渡：给一个平滑而不弹的时长 */
+body.reduce-anim .dialog {
+    transition-duration: 0.3s !important;
+    transition-timing-function: ease-out !important;
 }
 
 /* ============================================

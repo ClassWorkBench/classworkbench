@@ -39,7 +39,7 @@ let settings = {
     blurBars: true,                  // 顶/底栏/Toast 高斯模糊
     blurCard: true,                  // 作业卡片高斯模糊
     blurModal: true,                 // 模态弹窗高斯模糊
-    reduceAnimation: false,          // 减弱动画效果（压缩过渡/动画时长）
+    reduceAnimation: false,          // 减弱动画效果（标准/减弱，iOS 式淡入淡出）
     // 首次使用向导
     wizardCompleted: false,          // 是否已完成首次设置向导
     acceptedAgreementVersion: '',    // 已同意的用户协议/隐私声明版本（AGREEMENT_VERSION）

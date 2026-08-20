@@ -1,8 +1,9 @@
 // ============================================
-// search.js
-// 作业搜索微窗（更多菜单内原地变形）
+// search1.js  （备份版：进入仍是「从天而降」，返回已做「变形回缩」优化）
+// 保留自 search.js 中「只优化了返回动画」那一轮的完整状态。
 //   - 点击「作业搜索」后，更多菜单面板变形为搜索微窗
-//   - 搜索框固定在微窗最底部，打开时从天而降
+//   - 搜索框固定在微窗最底部，打开时从天而降（进入动画 = 原版）
+//   - 点击返回 → 丝滑「宽度收窄 + 高度回缩 + 淡入」还原菜单（本轮优化点）
 //   - 未输入结果时微窗较小，出现结果后丝滑撑大
 //   - 筛选条件默认折叠
 //   - 结果「越上面越不匹配」（按相关度升序排）
@@ -116,20 +117,6 @@
         const to = (elTo && elTo.value) || '';
         const incArchive = elArchive ? elArchive.checked : false;
 
-        listEl.innerHTML = '';
-        if (elSummary) elSummary.textContent = '';
-
-        // 严格版：只要没有关键词，就一律提示输入关键词，不展示任何结果。
-        // 哪怕勾了归档、选了学科、设了日期区间，也要先输入关键词才能看到列表，
-        // 避免清空关键词后误以为「搜索结果还在」。
-        if (!currentKw) {
-            const hint = document.createElement('div');
-            hint.className = 'sm-empty';
-            hint.textContent = '输入关键词开始搜索';
-            listEl.appendChild(hint);
-            return;
-        }
-
         const base = collectBase(incArchive);
         let matched = base.filter(h => filterByCriteria(h, from, to));
 
@@ -137,6 +124,7 @@
         if (currentKw) matched.sort((a, b) => computeScore(a) - computeScore(b));
         else matched.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
 
+        listEl.innerHTML = '';
         if (elSummary) elSummary.textContent = matched.length ? `${matched.length} 条匹配` : '';
 
         if (matched.length === 0) {
@@ -207,33 +195,15 @@
     }
 
     // ---- 尺寸动画：无结果时小，有结果时丝滑撑大 ----
-    // 注意：反复点击筛选时，sm-filters 的 max-height 正处在 0.35s 过渡动画中，
-    // 若直接量 root.offsetHeight，会量到「半展开」的中间态并叠加 overflow:hidden 裁切，
-    // 导致基准一次次测小、把面板越缩越小。因此测量前先把 max-height 强制钉到
-    // 目标终值（展开类存在→none，否则→0px），同一帧内还原则用户看不到中间态。
     function syncSize() {
         if (!microActive || !root || !listEl || !panel) return;
         panel.style.overflow = 'hidden';
 
+        const savedH = listEl.style.height;
         listEl.style.height = '0px';
+        const base = root.offsetHeight;         // 不含结果区的高度
+        listEl.style.height = savedH || 'auto';
 
-        // 临时把容器高度设为 auto，解除「面板固定高度」对 root 的 flex 收缩约束
-        const savedPanelH = panel.style.height;
-        panel.style.height = 'auto';
-
-        // 钉住 filters 到确定性终值再测量
-        const filters = elFilters;
-        const savedMaxH = filters ? filters.style.maxHeight : null;
-        if (filters) filters.style.maxHeight = filters.classList.contains('open') ? 'none' : '0px';
-
-        const base = root.offsetHeight;          // 不含结果区的高度
-
-        if (filters) filters.style.maxHeight = savedMaxH; // 还原，交还过渡动画
-        panel.style.height = savedPanelH;         // 还原容器高度
-        // 测量 listEl 内容高度前必须用 auto 兜底：若这里还保留上一轮撑开的
-        // 大高度（如 300px），在 overflow:auto 下 scrollHeight 会被读高，
-        // 导致清空关键词后弹窗缩不回去。
-        listEl.style.height = 'auto';
         const content = listEl.scrollHeight;
         const lh = content > 0 ? Math.min(content, MAX_LIST) : 0;
         listEl.style.height = lh + 'px';
@@ -302,7 +272,8 @@
         });
     }
 
-    // ---- 打开微窗（更多菜单内原地变形，与 restore 镜像）----
+    // ---- 打开微窗（更多菜单内变形）----
+    // 【备份版保留】进入仍是原始的「从天而降」动画，非镜像形变。
     function open() {
         if (microActive || !panel) return;
         microActive = true;
@@ -311,63 +282,43 @@
         currentKw = '';
         currentTerms = [];
 
-        const w0 = panel.offsetWidth;   // 菜单自然宽，作为变形动画起点
-        const h0 = panel.offsetHeight;  // 菜单自然高
+        const h0 = panel.offsetHeight; // 菜单态高度，作为变形动画起点
 
-        // 第 0 步：仅淡出菜单「内容」，保留玻璃面板本身，
-        // 避免面板整体淡成全透明而出现「空档闪白」。
-        Array.from(panel.children).forEach(el => {
-            el.style.transition = 'opacity 0.11s var(--transition-smooth)';
-            el.style.opacity = '0';
-        });
+        buildMicroHtml();
 
-        setTimeout(() => {
-            // 第 1 步：切入搜索内容，并「钉住」在菜单尺寸上，容器不瞬间坍缩/膨胀
-            buildMicroHtml();
-            panel.classList.add('more-sheet-search');
-            panel.style.width = w0 + 'px';
-            panel.style.height = h0 + 'px';
-            panel.style.overflow = 'hidden';
-            panel.style.transition =
-                'width 0.45s var(--transition-spring), ' +
-                'height 0.45s var(--transition-spring), ' +
-                'opacity 0.25s var(--transition-smooth)';
+        panel.classList.add('more-sheet-search');
+        panel.style.height = h0 + 'px';
 
-            // 搜索内容初始透明，随形变一起淡入（玻璃面板全程在，无空档）
-            root.style.opacity = '0';
-            root.style.transition = 'opacity 0.25s var(--transition-smooth)';
+        // 第一步：渲染筛选胶囊与事件
+        elFilters = root.querySelector('.sm-filters');
+        elKw = root.querySelector('.sm-input');
+        listEl = root.querySelector('.sm-list');
+        elSummary = root.querySelector('.sm-summary');
+        // elFrom / elTo / elArchive 在 buildMicroHtml 里已缓存 DOM 引用
+        renderSubjectPills();
+        setupFilterToggle();
 
-            // 渲染筛选胶囊与事件
-            elFilters = root.querySelector('.sm-filters');
-            elKw = root.querySelector('.sm-input');
-            listEl = root.querySelector('.sm-list');
-            elSummary = root.querySelector('.sm-summary');
-            // elFrom / elTo / elArchive 在 buildMicroHtml 里已缓存 DOM 引用
-            renderSubjectPills();
-            setupFilterToggle();
+        // Step 2：高度从菜单态收敛到「仅搜索框」的小尺寸
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+            syncSize();
+        }));
 
-            const box = root.querySelector('.sm-box');
+        // 搜索框「从天而降」到底部
+        const box = root.querySelector('.sm-box');
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+            if (box) box.classList.remove('sm-drop');
+        }));
 
-            elKw.addEventListener('input', scheduleDebounce);
-            elKw.addEventListener('keydown', (e) => { if (e.key === 'Enter') { clearTimeout(debounceTimer); applySearch(); } });
-            elFrom.addEventListener('change', applySearch);
-            elTo.addEventListener('change', applySearch);
-            elArchive.addEventListener('change', onArchiveToggle);
-            // ESC：微窗内先返回菜单，再按则关闭（用捕获阶段以优先于 more-menu 的关闭逻辑）
-            document.addEventListener('keydown', escHandler, true);
+        elKw.addEventListener('input', scheduleDebounce);
+        elKw.addEventListener('keydown', (e) => { if (e.key === 'Enter') { clearTimeout(debounceTimer); applySearch(); } });
+        elFrom.addEventListener('change', applySearch);
+        elTo.addEventListener('change', applySearch);
+        elArchive.addEventListener('change', onArchiveToggle);
 
-            // 第 2 步：下一帧统一触发「宽度伸展 + 高度收敛 + 内容淡入 + 搜索盒坠落」
-            // 钉住的值先提交一帧，再一并改变，才能让 弹簧过渡 从起点跑到终点。
-            requestAnimationFrame(() => requestAnimationFrame(() => {
-                buildList();                 // 初始渲染提示「输入关键词开始搜索」
-                syncSize();                    // 量出搜索态目标高度，触发 h0→H 收敛
-                panel.style.width = '';        // 交还 .more-sheet-search 的 400px，触发 w0→400
-                root.style.opacity = '1';      // 淡入搜索内容
-                if (box) box.classList.remove('sm-drop'); // 搜索盒「从天而降」
-            }));
+        // ESC：微窗内先返回菜单，再按则关闭（用捕获阶段以优先于 more-menu 的关闭逻辑）
+        document.addEventListener('keydown', escHandler, true);
 
-            requestAnimationFrame(() => { if (elKw) elKw.focus(); });
-        }, 120);
+        requestAnimationFrame(() => { if (elKw) elKw.focus(); });
     }
 
     function escHandler(e) {

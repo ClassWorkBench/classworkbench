@@ -149,5 +149,5 @@
         });
     }
 
-    window.AppMoreMenu = { init, openMenu, closeMenu, bindButtons };
+    window.AppMoreMenu = { init, openMenu, closeMenu, bindButtons, positionPanel };
 })();

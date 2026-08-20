@@ -70,14 +70,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // 读取随应用分发的协议/文档源文件（在线缓存优先，后台已同步最新；agreement / privacy / security / opensource / contact）
     readDoc: (name) => ipcRenderer.invoke('docs:read', name),
 
-    // 系统「透明效果」状态：拉取初始值 + 订阅变化（主进程轮询注册表推送）
-    getSystemTransparency: () => ipcRenderer.invoke('app:getSystemTransparency'),
-    onSystemTransparency: (cb) => {
-        const h = (_e, enabled) => cb(enabled);
-        ipcRenderer.on('system:transparency', h);
-        return () => ipcRenderer.removeListener('system:transparency', h);
-    },
-
     // 在线/内置文档版本号（用于判断协议是否已更新）
     getDocVersions: () => ipcRenderer.invoke('docs:getVersions'),
 
