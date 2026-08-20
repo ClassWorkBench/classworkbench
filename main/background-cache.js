@@ -290,9 +290,14 @@ function createBgCacheModule({
                         fail(new Error('背景图超过大小限制'));
                         return;
                     }
-                    out.write(chunk);
+                    if (!out.write(chunk)) {
+                        // 背压：暂停读取，等写缓冲排空，避免主进程无界堆积
+                        response.pause();
+                        const resume = () => { response.resume(); out.removeListener('drain', resume); };
+                        out.once('drain', resume);
+                    }
                 });
-                response.on('error', fail);
+                response.on('error', (e) => { if (!settled) out.end(); fail(e); });
                 response.on('end', () => {
                     if (!settled) out.end();
                 });

@@ -142,7 +142,13 @@
         const previousHomeworks = state.homeworks;
         state.homeworks = newHomeworks;
         const ok = await _persist();
-        if (!ok) state.homeworks = previousHomeworks;
+        if (!ok) {
+            state.homeworks = previousHomeworks;
+            // 回滚后刷新渲染层，让界面反映真实(恢复)的数据，避免 UI 与磁盘不一致
+            if (window.Renderer && typeof window.Renderer.renderAll === 'function') {
+                try { window.Renderer.renderAll(); } catch (e) { console.error('回滚后重渲染失败:', e); }
+            }
+        }
         return ok;
     }
 

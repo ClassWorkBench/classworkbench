@@ -40,8 +40,7 @@ function createWindowModule({
             return;
         }
         if (mainWindow.isMinimized()) mainWindow.restore();
-        if (!mainWindow.isMaximized()) mainWindow.maximize();
-        mainWindow.show();
+        if (!mainWindow.isVisible()) mainWindow.show();
         mainWindow.focus();
     }
 
