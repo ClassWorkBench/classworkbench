@@ -262,9 +262,24 @@ function createSidecarModule({
         callbacks.emit('qq:status', { running: false, pid: null, lastError: sidecarLastError });
     }
 
+    // 配置变更后的重启：单一定时器 + 意图标记，避免快速连续触发时停-起交错/重复启动
+    let sidecarConfigRestartTimer = null;
+    function restartSidecar() {
+        if (sidecarConfigRestartTimer) { clearTimeout(sidecarConfigRestartTimer); sidecarConfigRestartTimer = null; }
+        stopSidecar();
+        if (!sidecarShouldRun) {
+            sidecarShouldRun = true; // 先停后标记重启意图，若期间被手动关闭则定时器内不会重启
+        }
+        sidecarConfigRestartTimer = setTimeout(() => {
+            sidecarConfigRestartTimer = null;
+            if (sidecarShouldRun) startSidecar(lastSidecarConfig);
+        }, 300);
+    }
+
     return {
         startSidecar,
         stopSidecar,
+        restartSidecar,
         getStatus,
         getSidecarPath
     };

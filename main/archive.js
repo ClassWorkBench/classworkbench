@@ -149,6 +149,11 @@ function createArchiveModule({ archivesDir, store, atomicWriteRef, fs, path, log
     }
 
     async function loadArchiveByMonth(monthKey) {
+        // 白名单校验，防止 path.join 路径穿越读取任意 JSON 文件
+        if (typeof monthKey !== 'string' || !/^\d{4}-\d{2}$/.test(monthKey)) {
+            log.warn('archive:loadMonth 收到非法的月份参数，已拒绝:', monthKey);
+            return [];
+        }
         const filePath = path.join(archivesDir, `${monthKey}.json`);
         return safeReadArchive(filePath);
     }

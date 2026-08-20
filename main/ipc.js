@@ -144,13 +144,8 @@ function setupIpc({
     ipcMain.handle('qq:getStatus', () => sidecar.getStatus());
 
     ipcMain.handle('qq:updateConfig', () => {
-        const status = sidecar.getStatus();
-        if (status.running) {
-            sidecar.stopSidecar();
-            setTimeout(() => {
-                const qqConfig = getQqConfig();
-                sidecar.startSidecar(qqConfig);
-            }, 300);
+        if (sidecar.getStatus().running) {
+            sidecar.restartSidecar();
         }
         return { success: true };
     });
@@ -176,7 +171,11 @@ function setupIpc({
     });
 
     // ===== 外部链接 =====
-    ipcMain.handle('shell:openExternal', (_event, url) => shell.openExternal(url));
+    ipcMain.handle('shell:openExternal', (_event, url) => {
+        // 只放行 http/https/mailto，避免被用于唤起任意外部程序
+        if (typeof url !== 'string' || !/^(https?:|mailto:)/i.test(url)) return { success: false, error: 'URL 协议不允许' };
+        return shell.openExternal(url);
+    });
 
     // 应用版本号（取 package.json 的 version 字段）
     ipcMain.handle('app:getVersion', () => ({ success: true, version: app.getVersion() }));
