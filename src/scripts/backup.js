@@ -562,7 +562,8 @@
         document.body.classList.toggle('blur-bars-off', state.settings.blurBars === false);
         document.body.classList.toggle('blur-card-off', state.settings.blurCard === false);
         document.body.classList.toggle('blur-modal-off', state.settings.blurModal === false);
-        document.body.classList.toggle('reduce-anim', !!state.settings.reduceAnimation);
+        // 统一入口：叠加"系统减动效"判断
+        window.AppStyling.applyReducedMotion();
         try { restartWeatherRefresh(); } catch (_) {}
         try { restartBgRefresh(); } catch (_) {}
         try { Renderer.renderAll(); } catch (_) {}

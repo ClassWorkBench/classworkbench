@@ -62,7 +62,6 @@
         document.body.classList.toggle('blur-bars-off', !window.AppState.settings.blurBars);
         document.body.classList.toggle('blur-card-off', !window.AppState.settings.blurCard);
         document.body.classList.toggle('blur-modal-off', !window.AppState.settings.blurModal);
-        document.body.classList.toggle('reduce-anim', !!window.AppState.settings.reduceAnimation);
         initStyling();
 
         // 首次使用设置向导：全新安装走完整 7 步；老用户协议版本更新只弹协议确认。

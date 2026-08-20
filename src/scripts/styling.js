@@ -28,9 +28,30 @@
         }
     }
 
-    function initStyling() {
-        applyStyling();
+    // 系统「减弱动态效果」媒体查询对象；change 事件里实时同步 body.reduce-anim
+    let reducedMotionMedia = null;
+
+    // 统一入口：只要"系统开了减动效"或"软件里手动开了减动效"，就切成温和动画。
+    function applyReducedMotion() {
+        const systemReduced = reducedMotionMedia ? reducedMotionMedia.matches : false;
+        const shouldReduce = !!state.settings.reduceAnimation || systemReduced;
+        document.body.classList.toggle('reduce-anim', shouldReduce);
     }
 
-    window.AppStyling = { applyStyling, initStyling };
+    function initStyling() {
+        applyStyling();
+        // 绑定系统减动效：声明（更改时自动适配），一次性,无副作用
+        if (typeof window.matchMedia === 'function') {
+            reducedMotionMedia = window.matchMedia('(prefers-reduced-motion: reduce)');
+            const onChange = () => { try { applyReducedMotion(); } catch (_) {} };
+            if (reducedMotionMedia.addEventListener) {
+                reducedMotionMedia.addEventListener('change', onChange);
+            } else if (reducedMotionMedia.addListener) {
+                reducedMotionMedia.addListener(onChange);
+            }
+        }
+        applyReducedMotion();
+    }
+
+    window.AppStyling = { applyStyling, applyReducedMotion, initStyling };
 })();

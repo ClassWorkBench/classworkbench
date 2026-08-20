@@ -111,7 +111,8 @@ window.SettingsModules.accessibility = {
                 const reduced = btn.dataset.mode === 'reduced';
                 if (reduced === state.settings.reduceAnimation) return;
                 state.settings.reduceAnimation = reduced;
-                document.body.classList.toggle('reduce-anim', reduced);
+                // 走统一入口，同时叠加"系统减动效"判断
+                window.AppStyling.applyReducedMotion();
                 updateSegState(reduced);
                 await saveSettings();
             });
