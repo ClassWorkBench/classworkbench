@@ -110,7 +110,10 @@ function createArchiveModule({ archivesDir, store, atomicWriteRef, fs, path, log
             try {
                 await atomicWriteFileSync(filePath, JSON.stringify([...map.values()], null, 2));
             } catch (e) {
-                log.error('写入归档文件失败:', filePath, e);
+                // 写入失败：不得静默丢弃这些作业——把它们保留在活跃列表，
+                // 由调用方（loadDataInternal）继续写回主数据，避免作业永久丢失。
+                log.error('写入归档文件失败，已保留作业不归档:', filePath, e);
+                active.push(...items);
             }
         }
 

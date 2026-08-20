@@ -87,8 +87,7 @@ function createDataStore({ app, fs, path, log, cipher, defaults, isEncryptionEna
                 log.warn('[data-store] 加密文件损坏，已回退读取明文文件');
                 return;
             }
-            log.error('[data-store] 加密数据解密失败，备份损坏文件后使用默认值');
-            backupCorrupted(enc);
+            log.error('[data-store] 加密数据解密失败，损坏文件已在 loadFromFile 中备份，使用默认值');
             return;
         }
 
