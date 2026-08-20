@@ -32,6 +32,7 @@ const { createDataStore } = require('./main/data-store');
 const { createWindowModule } = require('./main/window');
 const { createDocsSync } = require('./main/docs-sync');
 const { createQweatherClient } = require('./main/qweather-auth');
+const { createSystemTransparencyModule } = require('./main/system-transparency');
 const { setupIpc } = require('./main/ipc');
 
 // ============================================
@@ -74,6 +75,7 @@ if (!gotTheLock) {
     let windowMod = null;
     let docsSync = null;
     let qweather = null;
+    let sysTransparency = null;
 
     // ---- 主窗口变化时把引用同步给 mainWindowRef（供 IPC/second-instance 调用） ----
     function onMainWindowChange(w) { mainWindowRef.value = w; }
@@ -191,6 +193,12 @@ if (!gotTheLock) {
         // 和风天气 JWT 认证客户端（主进程签名，渲染层不接触私钥）
         qweather = createQweatherClient({ net, log });
 
+        // Windows「透明效果」检测：系统关闭透明时同步关闭软件内毛玻璃
+        sysTransparency = createSystemTransparencyModule({
+            execFileSync, log,
+            emit: (event, data) => emitToRenderer(event, data)
+        });
+
         // ---- IPC 胶水层 ----
         setupIpc({
             ipcMain, clipboard, shell, log, store,
@@ -200,6 +208,12 @@ if (!gotTheLock) {
             getQqConfig,
             fs, path, app
         });
+
+        // 系统透明效果查询（供渲染层启动时拉取初始值，防止错过首次推送）
+        ipcMain.handle('app:getSystemTransparency', () => ({
+            ok: true,
+            enabled: sysTransparency ? sysTransparency.getEnabled() : null
+        }));
 
         // ---- 启动就绪后的一次性初始化 ----
         bg.cleanupBgCache();
@@ -212,6 +226,9 @@ if (!gotTheLock) {
 
         windowMod.createWindow();
         windowMod.createTray();
+
+        // 主窗口就绪后开始监听系统透明效果（渲染层已可订阅推送）
+        if (sysTransparency) sysTransparency.start();
 
         // 后台异步同步协议/文档（不阻塞界面）；变了则通知渲染层展示最新/重弹协议
         docsSync.sync().then((summary) => {

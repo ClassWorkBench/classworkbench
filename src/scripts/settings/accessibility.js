@@ -118,15 +118,26 @@ window.SettingsModules.accessibility = {
             });
         }
 
-        // ---- 模糊效果：3 个开关，切换即时生效（body class） ----
+        // ---- 模糊效果：3 个开关，切换即时生效（body class 由 AppStyling 统一应用，叠加系统透明判断） ----
         const blurBarsToggle = document.getElementById('blurBarsToggle');
         const blurCardToggle = document.getElementById('blurCardToggle');
         const blurModalToggle = document.getElementById('blurModalToggle');
+        const blurToggleInputs = [blurBarsToggle, blurCardToggle, blurModalToggle];
         const applyBlurClasses = () => {
-            document.body.classList.toggle('blur-bars-off', !state.settings.blurBars);
-            document.body.classList.toggle('blur-card-off', !state.settings.blurCard);
-            document.body.classList.toggle('blur-modal-off', !state.settings.blurModal);
+            if (window.AppStyling) window.AppStyling.applyBlurClasses();
         };
+        // 系统关闭透明效果时，三个模糊开关强制关 + 置灰不可改
+        const applyBlurToggleDisabled = (forcedOff) => {
+            blurToggleInputs.forEach((el) => {
+                if (!el) return;
+                el.disabled = forcedOff;
+                const label = el.closest('.setting-toggle');
+                if (label) label.classList.toggle('disabled', forcedOff);
+                // 置灰后仍如实反映"软件设置里是否勾选"（虽然被系统压制不生效）
+            });
+        };
+        const onSysTransparencyChange = (e) => applyBlurToggleDisabled(!!e.detail.forcedOff);
+        window.addEventListener('system:transparency-change', onSysTransparencyChange);
         const bindBlurToggle = (el, field) => {
             if (!el) return;
             el.addEventListener('change', async () => {
@@ -140,5 +151,7 @@ window.SettingsModules.accessibility = {
         bindBlurToggle(blurModalToggle, 'blurModal');
         // 打开设置面板时同步一次（确保 body class 与保存值一致）
         applyBlurClasses();
+        // 若此刻已被系统强制关闭，立即置灰
+        applyBlurToggleDisabled(!!(window.AppStyling && window.AppStyling.getSystemTransparencyForcedOff));
     }
 };

@@ -58,11 +58,9 @@
         }
 
         await loadAll();
-        // 视觉与性能：根据设置应用模糊降级 + 减弱动画 body class
-        document.body.classList.toggle('blur-bars-off', !window.AppState.settings.blurBars);
-        document.body.classList.toggle('blur-card-off', !window.AppState.settings.blurCard);
-        document.body.classList.toggle('blur-modal-off', !window.AppState.settings.blurModal);
+        // 视觉与性能：模糊降级 + 减弱动画（含系统透明/减动效同步）由 AppStyling 统一应用
         initStyling();
+        window.AppStyling.applyBlurClasses();
 
         // 首次使用设置向导：全新安装走完整 7 步；老用户协议版本更新只弹协议确认。
         // await 等待向导完成后再渲染主界面，学科/晚修/天气城市的改动一次生效。

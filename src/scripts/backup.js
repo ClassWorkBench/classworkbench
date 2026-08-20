@@ -559,11 +559,9 @@
 
     function applyRuntimeAfterRestore() {
         try { applyStyling(); } catch (_) {}
-        document.body.classList.toggle('blur-bars-off', state.settings.blurBars === false);
-        document.body.classList.toggle('blur-card-off', state.settings.blurCard === false);
-        document.body.classList.toggle('blur-modal-off', state.settings.blurModal === false);
-        // 统一入口：叠加"系统减动效"判断
-        window.AppStyling.applyReducedMotion();
+        // 模糊/减动效统一走 AppStyling（叠加"系统透明/减动效"判断）
+        try { window.AppStyling.applyBlurClasses(); } catch (_) {}
+        try { window.AppStyling.applyReducedMotion(); } catch (_) {}
         try { restartWeatherRefresh(); } catch (_) {}
         try { restartBgRefresh(); } catch (_) {}
         try { Renderer.renderAll(); } catch (_) {}

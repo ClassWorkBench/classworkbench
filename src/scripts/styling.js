@@ -38,6 +38,28 @@
         document.body.classList.toggle('reduce-anim', shouldReduce);
     }
 
+    // 系统「透明效果」关闭时强制关闭软件内毛玻璃（true=强制关）
+    let systemTransparencyForcedOff = false;
+
+    // 统一应用三个模糊开关：被系统强制关闭时忽略软件设置，否则跟随设置。
+    function applyBlurClasses() {
+        const eff = (key) => systemTransparencyForcedOff ? false : !!state.settings[key];
+        document.body.classList.toggle('blur-bars-off', !eff('blurBars'));
+        document.body.classList.toggle('blur-card-off', !eff('blurCard'));
+        document.body.classList.toggle('blur-modal-off', !eff('blurModal'));
+    }
+
+    // 主进程推送系统透明状态；变化时广播给设置面板做置灰
+    function setSystemTransparencyEnabled(enabled) {
+        systemTransparencyForcedOff = (enabled === false); // false=系统透明关
+        applyBlurClasses();
+        try {
+            window.dispatchEvent(new CustomEvent('system:transparency-change', {
+                detail: { forcedOff: systemTransparencyForcedOff }
+            }));
+        } catch (_) {}
+    }
+
     function initStyling() {
         applyStyling();
         // 绑定系统减动效：声明（更改时自动适配），一次性,无副作用
@@ -50,8 +72,25 @@
                 reducedMotionMedia.addListener(onChange);
             }
         }
+        // 订阅系统透明效果变化 + 拉取初始值（防止错过主进程首次推送）
+        if (window.electronAPI && typeof window.electronAPI.onSystemTransparency === 'function') {
+            window.electronAPI.onSystemTransparency((enabled) => setSystemTransparencyEnabled(enabled));
+        }
+        if (window.electronAPI && typeof window.electronAPI.getSystemTransparency === 'function') {
+            window.electronAPI.getSystemTransparency()
+                .then((res) => { if (res && typeof res.enabled === 'boolean') setSystemTransparencyEnabled(res.enabled); })
+                .catch(() => {});
+        }
         applyReducedMotion();
+        applyBlurClasses();
     }
 
-    window.AppStyling = { applyStyling, applyReducedMotion, initStyling };
+    window.AppStyling = {
+        applyStyling,
+        applyReducedMotion,
+        applyBlurClasses,
+        setSystemTransparencyEnabled,
+        getSystemTransparencyForcedOff: () => systemTransparencyForcedOff,
+        initStyling
+    };
 })();

@@ -1348,6 +1348,14 @@ textarea:hover::-webkit-resizer {
     font-weight: 600;
     user-select: none;
 }
+/* 系统关闭透明时模糊开关整体置灰 */
+.setting-toggle.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+.setting-toggle.disabled .toggle-slider {
+    background: rgba(0, 0, 0, 0.12);
+}
 .setting-toggle input[type="checkbox"] {
     opacity: 0;
     width: 0;
