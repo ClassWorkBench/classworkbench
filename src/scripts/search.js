@@ -343,7 +343,14 @@
         panel.appendChild(root);
 
         const backBtn = root.querySelector('.sm-back');
-        backBtn.addEventListener('click', restore);
+        // 阻止冒泡：restore() 会重建面板内 DOM，旧返回按钮随即销毁；
+        // 若不 stopImmediatePropagation，document 的"点击外部关闭菜单"会把
+        // 已销毁的 target 判为外部而误关菜单（点击返回却回到主界面）。
+        backBtn.addEventListener('click', (e) => {
+            e.stopImmediatePropagation();
+            e.preventDefault();
+            restore();
+        });
     }
 
     function restore() {

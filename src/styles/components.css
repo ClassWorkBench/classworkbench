@@ -85,22 +85,24 @@
     opacity: 0.6;
 }
 
-/* 天气预警胶囊 */
+/* 天气预警胶囊 —— 尺寸/质感与天气胶囊(.weather-area)完全一致 */
 .alert-area {
     display: flex;
     align-items: center;
     gap: 6px;
-    font-size: 0.76rem;
-    font-weight: 600;
-    padding: 4px 12px;
+    font-size: 0.85rem;                    /* 与 .weather-area 一致 */
+    font-weight: 500;                      /* 与 .weather-area 一致 */
+    padding: 4px 14px 4px 10px;            /* 与 .weather-area 一致 */
+    color: var(--text-secondary);
     border-radius: 30px;
     border: 1px solid rgba(255, 255, 255, 0.5);
+    background: rgba(255, 255, 255, 0.35); /* 与 .weather-area 一致 */
     backdrop-filter: blur(6px) saturate(1.15);
     -webkit-backdrop-filter: blur(6px) saturate(1.15);
     white-space: nowrap;
     flex-shrink: 0;
     cursor: pointer;
-    transition: transform 0.2s var(--transition-spring), filter 0.2s;
+    transition: transform 0.2s var(--transition-spring), filter 0.2s, background 0.3s;
     animation: alertSlideIn 0.35s var(--transition-spring);
     outline: none;
 }

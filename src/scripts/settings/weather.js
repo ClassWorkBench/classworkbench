@@ -689,5 +689,10 @@ window.SettingsModules.weather = {
             await saveSettings();
             restartWeatherRefresh();
         });
+
+        // ---- 初始化：为已渲染的城市列表绑定删除/拖拽事件 ----
+        // render() 内联了列表 HTML，但未走 renderCityList()（它负责重建 + 绑事件）。
+        // bind() 时必须主动执行一次，否则初始列表的删除/拖拽无监听器。
+        renderCityList();
     }
 };
