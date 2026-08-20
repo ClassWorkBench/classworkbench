@@ -39,7 +39,7 @@ window.SettingsModules.about = {
                                 <div class="about-meta-row"><span>版本</span><b id="aboutVersion">加载中…</b></div>
                                 <div class="about-meta-row"><span>开源协议</span><b>MIT License</b></div>
                                 <div class="about-meta-row"><span>技术栈</span><b>Electron 33 + 原生 JS/CSS</b></div>
-                                <div class="about-meta-row"><span>协议文档版本</span><b>${escapeHtml(docVer)}</b></div>
+                                <div class="about-meta-row"><span>协议文档版本</span><b id="aboutDocVersion">${escapeHtml(docVer)}</b></div>
                             </div>
 
                             <div class="setting-group">
@@ -51,7 +51,7 @@ window.SettingsModules.about = {
                                     <button class="about-doc-link" type="button" data-doc="opensource"><span class="doc-ico">${DOC_ICONS.opensource}</span>开源软件声明</button>
                                     <button class="about-doc-link" type="button" data-doc="contact"><span class="doc-ico">${DOC_ICONS.contact}</span>联系我们</button>
                                 </div>
-                                <small class="field-hint">点击查看完整文档内容（与首次向导一致，运行时从磁盘读取）</small>
+                                <small class="field-hint">点击查看完整文档内容（与首次向导一致；启动后后台自动同步线上最新版本）</small>
                             </div>
 
                             <div class="setting-group">
@@ -84,6 +84,21 @@ window.SettingsModules.about = {
                 console.error('读取版本号失败:', e);
             }
             verEl.textContent = (window.AppConfig && window.AppConfig.APP_VERSION) || '1.0.0';
+        })();
+
+        // ---- 协议文档版本：优先取在线生效版本，回退内置 ----
+        const docVerEl = panel.querySelector('#aboutDocVersion');
+        (async () => {
+            try {
+                const v = await api.getDocVersions();
+                const eff = (v && v.effective && v.effective.agreement) || '';
+                if (eff) {
+                    const src = (v.source && v.source.agreement) || '';
+                    docVerEl.textContent = eff + (src.includes('github.io') ? '（在线）' : '');
+                }
+            } catch (e) {
+                console.error('读取协议文档版本失败:', e);
+            }
         })();
 
         // ---- 协议文档弹窗（复用向导同款 Markdown 渲染） ----

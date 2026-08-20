@@ -28,6 +28,10 @@
             if (!state.settings.weatherRefreshMode) state.settings.weatherRefreshMode = 'always';
             if (state.settings.qweatherApiHost === undefined) state.settings.qweatherApiHost = '';
             if (state.settings.qweatherApiKey === undefined) state.settings.qweatherApiKey = '';
+            // 和风 JWT 认证字段兜底（v1.x 迁移新增）
+            if (state.settings.qweatherKid === undefined) state.settings.qweatherKid = '';
+            if (state.settings.qweatherSub === undefined) state.settings.qweatherSub = '';
+            if (state.settings.qweatherPrivateKey === undefined) state.settings.qweatherPrivateKey = '';
             // 旧版 weatherCities → openmeteoCities / qweatherCities 迁移
             if (Array.isArray(state.settings.weatherCities) && state.settings.weatherCities.length > 0) {
                 var om = [];

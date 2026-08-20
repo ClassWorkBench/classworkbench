@@ -56,8 +56,29 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // 打开外部链接
     openExternal: (url) => ipcRenderer.invoke('shell:openExternal', url),
 
-    // 读取随应用分发的协议/文档源文件（agreement / privacy / security）
+    // 和风天气（JWT 认证）：主进程签名并请求，渲染层不接触私钥
+    qweather: {
+        // 发起一条和风 API 请求。endpoint 可为 ''（空）或含 {lat}/{lon} 占位的路径。
+        // args: { endpoint, query?, lat?, lon? }；返回 { ok, data } 或 { ok:false, error }
+        get: (args) => ipcRenderer.invoke('qweather:get', args),
+        // 仅生成一次 JWT 令牌（用于设置面板校验/预览）
+        getToken: () => ipcRenderer.invoke('qweather:getToken'),
+        // 本机生成一对 Ed25519 密钥（私钥填软件、公钥传和风登记）。返回 { ok, privateKey, publicKey }
+        genKeyPair: () => ipcRenderer.invoke('qweather:genKeyPair'),
+    },
+
+    // 读取随应用分发的协议/文档源文件（在线缓存优先，后台已同步最新；agreement / privacy / security / opensource / contact）
     readDoc: (name) => ipcRenderer.invoke('docs:read', name),
+
+    // 在线/内置文档版本号（用于判断协议是否已更新）
+    getDocVersions: () => ipcRenderer.invoke('docs:getVersions'),
+
+    // 事件订阅：后台同步完成且有文档变化（含 changed 清单）
+    onDocsUpdated: (cb) => {
+        const h = (_e, data) => cb(data);
+        ipcRenderer.on('docs:updated', h);
+        return () => ipcRenderer.removeListener('docs:updated', h);
+    },
 
     // 应用版本号（来自 package.json）
     getVersion: () => ipcRenderer.invoke('app:getVersion'),

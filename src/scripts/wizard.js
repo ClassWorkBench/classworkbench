@@ -721,7 +721,14 @@
     // ------------------------------------------------------------
     async function finishWizard() {
         state.settings.wizardCompleted = true;
-        state.settings.acceptedAgreementVersion = AGREEMENT_VERSION;
+        // 已同意版本 = 向导实际展示的协议版本（在线优先），而非打包常量
+        // 这样在线协议更新后，老用户会被重新要求确认协议。
+        let eff = '';
+        try {
+            const v = await api.getDocVersions();
+            eff = (v && v.effective && v.effective.agreement) || '';
+        } catch (_) { /* 取不到则回退常量 */ }
+        state.settings.acceptedAgreementVersion = eff || AGREEMENT_VERSION;
         await saveSettings();
         closeWizard(true);
     }
@@ -755,14 +762,23 @@
      */
     function maybeStart() {
         const s = state.settings;
-        if (s.wizardCompleted && s.acceptedAgreementVersion === AGREEMENT_VERSION) {
-            return Promise.resolve(false);  // 已完成且协议版本一致
-        }
-        if (s.wizardCompleted) {
-            return start('agreement-only');  // 老用户：协议有更新
-        }
-        // 未走过向导：全新安装走完整向导；老版本升级用户只确认协议
-        return start(window.AppStorage.isFreshInstall ? 'full' : 'agreement-only');
+        // 当前生效协议版本：在线优先（getDocVersions 主进程内存读缓存，开销可忽略），内置兜底
+        return (async () => {
+            let eff = '';
+            try {
+                const v = await api.getDocVersions();
+                eff = (v && v.effective && v.effective.agreement) || '';
+            } catch (_) { /* 忽略 */ }
+            const curVer = eff || AGREEMENT_VERSION;
+            if (s.wizardCompleted && s.acceptedAgreementVersion === curVer) {
+                return false;  // 已完成且协议版本一致
+            }
+            if (s.wizardCompleted) {
+                return start('agreement-only');  // 老用户：协议有更新
+            }
+            // 未走过向导：全新安装走完整向导；老版本升级用户只确认协议
+            return start(window.AppStorage.isFreshInstall ? 'full' : 'agreement-only');
+        })();
     }
 
     /**
@@ -848,4 +864,27 @@
     }
 
     window.AppWizard = { maybeStart, start };
+
+    // ------------------------------------------------------------
+    // 后台在线协议更新完成 → 生效版本高于"已同意版本"时，重弹协议确认
+    // 仅在后台同步确实拉取到协议新内容后触发一次（changed 含 agreement），
+    // 避免与首次安装向导叠加。
+    // ------------------------------------------------------------
+    if (api.onDocsUpdated) {
+        api.onDocsUpdated(async (summary) => {
+            try {
+                if (!summary || !Array.isArray(summary.changed) || summary.changed.indexOf('agreement') === -1) return;
+                if (wiz) return;                 // 已在向导流程中，不叠加
+                const s = state.settings;
+                if (!s.wizardCompleted) return;  // 新用户走正常向导，不在此处干预
+                const v = await api.getDocVersions();
+                const eff = (v && v.effective && v.effective.agreement) || '';
+                if (eff && eff !== s.acceptedAgreementVersion) {
+                    await start('agreement-only');
+                }
+            } catch (e) {
+                console.error('[向导] 在线协议更新重弹失败:', e);
+            }
+        });
+    }
 })();

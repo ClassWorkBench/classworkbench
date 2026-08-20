@@ -25,7 +25,10 @@ let settings = {
     weatherRefreshInterval: 30,      // 天气刷新间隔（分钟），0 = 不刷新
     weatherRefreshMode: 'foreground',    // 'always' | 'foreground' 始终刷新 / 仅前台刷新（默认前台更省资源，可在设置面板改）
     qweatherApiHost: '',             // 和风天气专属 API Host
-    qweatherApiKey: '',              // 和风天气 API Key
+    qweatherApiKey: '',              // 和风天气 API Key（旧认证，JWT 迁移后保留兼容）
+    qweatherKid: '',                 // 和风 JWT 凭据 ID（控制台-项目管理查看）
+    qweatherSub: '',                 // 和风 JWT 项目 ID（sub 签发主体）
+    qweatherPrivateKey: '',          // 和风 Ed25519 私钥（PEM，仅主进程用于签名，不落渲染层）
     alertEnabledLevels: ['blue', 'yellow', 'orange', 'red'],  // 预警级别筛选，默认全选
     bgRefreshInterval: 30,
     bgSource: 'upx8',

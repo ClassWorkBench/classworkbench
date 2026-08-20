@@ -30,6 +30,8 @@ const { createFloatingModule } = require('./main/floating');
 const { createCipherModule } = require('./main/data-cipher');
 const { createDataStore } = require('./main/data-store');
 const { createWindowModule } = require('./main/window');
+const { createDocsSync } = require('./main/docs-sync');
+const { createQweatherClient } = require('./main/qweather-auth');
 const { setupIpc } = require('./main/ipc');
 
 // ============================================
@@ -70,6 +72,8 @@ if (!gotTheLock) {
     let cipher = null;
     let store = null;
     let windowMod = null;
+    let docsSync = null;
+    let qweather = null;
 
     // ---- 主窗口变化时把引用同步给 mainWindowRef（供 IPC/second-instance 调用） ----
     function onMainWindowChange(w) { mainWindowRef.value = w; }
@@ -181,10 +185,17 @@ if (!gotTheLock) {
             emit: emitToRenderer
         });
 
+        // 协议/文档在线同步（三级兜底 + SHA-256 比对 + 本地缓存），不阻塞启动
+        docsSync = createDocsSync({ app, fs, path, crypto, net, log });
+
+        // 和风天气 JWT 认证客户端（主进程签名，渲染层不接触私钥）
+        qweather = createQweatherClient({ net, log });
+
         // ---- IPC 胶水层 ----
         setupIpc({
             ipcMain, clipboard, shell, log, store,
-            archive, bg, autoLaunch, sidecar, backup, floating, cipher,
+            archive, bg, autoLaunch, sidecar, backup, floating, cipher, docsSync,
+            qweather,
             getMainWindow: () => mainWindowRef.value,
             getQqConfig,
             fs, path, app
@@ -201,6 +212,13 @@ if (!gotTheLock) {
 
         windowMod.createWindow();
         windowMod.createTray();
+
+        // 后台异步同步协议/文档（不阻塞界面）；变了则通知渲染层展示最新/重弹协议
+        docsSync.sync().then((summary) => {
+            if (summary && summary.changed && summary.changed.length) {
+                emitToRenderer('docs:updated', summary);
+            }
+        }).catch((e) => log.error('[docs-sync] 后台同步失败:', e));
     });
 
     app.on('activate', () => {

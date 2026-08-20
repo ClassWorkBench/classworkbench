@@ -31,14 +31,16 @@ window.SettingsModules.qq = {
                             <!-- 区块 2：老师联系人 -->
                             <div class="setting-group">
                                 <label>老师联系人</label>
-                                <div id="qqTeachersList" class="subject-manage-list"></div>
-                                <div class="setting-row qq-add-row">
-                                    <input id="newTeacherName" placeholder="QQ 昵称（如：张老师）" class="input-flex-wide" aria-label="老师昵称">
-                                    <select id="newTeacherSubject" aria-label="老师学科" class="select-min">
-                                        <option value="">请选学科</option>
-                                        ${state.subjectList.map(s => `<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('')}
-                                    </select>
-                                    <button class="btn primary" id="addTeacherBtn" aria-label="添加老师">+ 添加</button>
+                                <div class="subject-manage-box">
+                                    <div id="qqTeachersList" class="subject-manage-list"></div>
+                                    <div class="qq-add-row">
+                                        <input id="newTeacherName" placeholder="QQ 昵称" class="input-flex" aria-label="老师昵称">
+                                        <select id="newTeacherSubject" aria-label="老师学科">
+                                            <option value="">请选学科</option>
+                                            ${state.subjectList.map(s => `<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('')}
+                                        </select>
+                                        <button class="btn primary" id="addTeacherBtn" aria-label="添加老师">+ 添加</button>
+                                    </div>
                                 </div>
                             </div>
 
@@ -143,7 +145,7 @@ window.SettingsModules.qq = {
             if (!listDiv) return;
             const teachers = qq.teachers || [];
             if (teachers.length === 0) {
-                listDiv.innerHTML = '<div class="teacher-list-empty">暂无老师。请在下方输入 QQ 昵称、选择学科后点击「+ 添加」。</div>';
+                listDiv.innerHTML = '<div class="teacher-list-empty">暂无老师，请在下方添加</div>';
                 return;
             }
             const subjOpts = state.subjectList.map(s =>

@@ -9,8 +9,8 @@ const STORAGE = {
     SUBJECTS: 'subjects_v2',
 };
 
-// 用户协议/隐私声明当前版本（与 AGREEMENT.md / PRIVACY.md 的版本号保持同步）。
-// 协议内容更新时递增此版本号，老用户下次启动会重新弹出协议确认。
+// 协议版本兜底常量（与 AGREEMENT.md 头部 "**版本：vX.Y.Z**" 保持同一数值）。
+// 运行期协议版本以实际文档内容（在线同步优先）解析为准，此常量仅在文档无法解析时兜底显示。
 const AGREEMENT_VERSION = '1.0.0';
 
 // 应用版本号（与 package.json version 保持一致；仅当主进程版本获取失败时兜底显示）

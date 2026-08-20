@@ -19,12 +19,14 @@
  * @param {object} opts.backup      - 备份/恢复模块（exportBackup / importBackup / createSnapshot / collectArchives / restoreArchives）
  * @param {object} opts.floating    - 浮窗模块（enter / exit / cardReady / getCardForWebContents / closeCard / closeAfterFade）
  * @param {object} opts.cipher      - 数据加密模块（status 供设置面板展示）
+ * @param {object} opts.docsSync   - 协议/文档在线同步模块（readDoc / readBundled / parseVersion / sync）
+ * @param {object} opts.qweather   - 和风天气 JWT 客户端（get / generateToken）
  * @param {Function} opts.getMainWindow - 获取当前主窗口（page:copy / 关闭窗口用）
  * @param {Function} opts.getQqConfig - 从 store 取当前 QQ 设置（qq:toggle / qq:updateConfig 用）
  */
 function setupIpc({
     ipcMain, clipboard, shell, log, store,
-    archive, bg, autoLaunch, sidecar, backup, floating, cipher,
+    archive, bg, autoLaunch, sidecar, backup, floating, cipher, docsSync, qweather,
     getMainWindow, getQqConfig, fs, path, app
 }) {
 
@@ -136,7 +138,8 @@ function setupIpc({
     // 应用版本号（取 package.json 的 version 字段）
     ipcMain.handle('app:getVersion', () => ({ success: true, version: app.getVersion() }));
 
-    // ===== 协议/文档读取（白名单文件名，源文件随应用分发，单一数据源） =====
+    // ===== 协议/文档读取（白名单文件名） =====
+    // 在线缓存优先（sync 后台已拉取最新），无在线缓存时回退随应用分发的源文件。
     const DOC_FILES = Object.freeze({
         agreement: 'AGREEMENT.md',
         privacy: 'PRIVACY.md',
@@ -145,13 +148,98 @@ function setupIpc({
         contact: 'CONTACT.md'
     });
     ipcMain.handle('docs:read', (_event, name) => {
-        const file = DOC_FILES[name];
-        if (!file) return null;
+        if (!DOC_FILES[name]) return null;
         try {
-            return fs.readFileSync(path.join(app.getAppPath(), file), 'utf8');
+            return docsSync ? docsSync.readDoc(name) : fs.readFileSync(path.join(app.getAppPath(), DOC_FILES[name]), 'utf8');
         } catch (e) {
-            log.error(`[docs:read] 读取 ${file} 失败:`, e);
+            log.error(`[docs:read] 读取 ${name} 失败:`, e);
             return null;
+        }
+    });
+
+    // 在线/内置版本号：renderer 据此判断"已同意版本"是否落后于在线协议版本
+    ipcMain.handle('docs:getVersions', () => {
+        const names = Object.keys(DOC_FILES);
+        const out = { effective: {}, bundled: {}, source: {} };
+        for (const n of names) {
+            let effContent = null;
+            let bundledContent = null;
+            try {
+                if (docsSync) {
+                    effContent = docsSync.readDoc(n);
+                    bundledContent = docsSync.readBundled(n);
+                } else {
+                    effContent = bundledContent = fs.readFileSync(path.join(app.getAppPath(), DOC_FILES[n]), 'utf8');
+                }
+            } catch (_) { /* 忽略单文档失败 */ }
+            out.effective[n] = docsSync ? docsSync.parseVersion(effContent) : '';
+            out.bundled[n] = docsSync ? docsSync.parseVersion(bundledContent) : '';
+            out.source[n] = docsSync && docsSync.sourceFor ? docsSync.sourceFor(n) : '';
+        }
+        return out;
+    });
+
+    // ===== 和风天气（JWT 认证，主进程签名，渲染层不接触私钥） =====
+    // 主进程读取 settings 中的 host/kid/sub/privateKey，生成 JWT 后按 endpooint 请求并返回 JSON。
+    ipcMain.handle('qweather:get', async (_event, args) => {
+        const { endpoint, query, lat, lon } = args || {};
+        const settings = store ? (store.get('settings') || {}) : {};
+        const host = settings.qweatherApiHost;
+        const cfg = {
+            kid: settings.qweatherKid,
+            sub: settings.qweatherSub,
+            privateKey: settings.qweatherPrivateKey
+        };
+        if (!qweather) {
+            log.error('[qweather] 客户端未初始化');
+            return { ok: false, error: 'NO_CLIENT' };
+        }
+        if (!endpoint) {
+            return { ok: false, error: 'NO_ENDPOINT' };
+        }
+        try {
+            const efx = endpoint
+                .replace(/\{lat\}/g, String(lat))
+                .replace(/\{lon\}/g, String(lon));
+            const data = await qweather.get({ host, cfg, endpoint: efx, query });
+            return { ok: true, data };
+        } catch (e) {
+            log.error('[qweather] 请求失败:', e);
+            if (e.message === 'NO_CLIENT' || e.message === 'HTTP 403') {
+                return { ok: false, error: e.message };
+            }
+            // 配置缺失/签名失败等统一捕获
+            return { ok: false, error: e.message || 'UNKNOWN' };
+        }
+    });
+
+    // 生成一次 JWT 令牌（供设置面板预览/校验；正常请求走 qweather:get 不要在这里发起）
+    ipcMain.handle('qweather:getToken', () => {
+        const settings = store ? (store.get('settings') || {}) : {};
+        if (!qweather) return { ok: false, error: 'NO_CLIENT' };
+        try {
+            const token = qweather.generateToken({
+                kid: settings.qweatherKid,
+                sub: settings.qweatherSub,
+                privateKey: settings.qweatherPrivateKey
+            });
+            return { ok: true, token };
+        } catch (e) {
+            log.error('[qweather] JWT 生成失败:', e);
+            return { ok: false, error: e.message };
+        }
+    });
+
+    // 生成本地 Ed25519 密钥对（设置界面"一键生成"用）：返回 PEM 私钥 + 公钥
+    ipcMain.handle('qweather:genKeyPair', () => {
+        if (!qweather || typeof qweather.generateKeyPair !== 'function') {
+            return { ok: false, error: 'NO_CLIENT' };
+        }
+        try {
+            return { ok: true, ...qweather.generateKeyPair() };
+        } catch (e) {
+            log.error('[qweather] 密钥生成失败:', e);
+            return { ok: false, error: e.message };
         }
     });
 

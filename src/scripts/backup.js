@@ -25,6 +25,7 @@
         {
             id: 'weather', name: '天气',
             keys: ['weatherProvider', 'openmeteoCities', 'qweatherCities', 'qweatherApiHost', 'qweatherApiKey',
+                'qweatherKid', 'qweatherSub', 'qweatherPrivateKey',
                 'alertEnabledLevels', 'weatherRefreshInterval', 'weatherRefreshMode']
         },
         {

@@ -44,39 +44,44 @@ window.SettingsModules.weather = {
                             <p class="panel-desc">选择天气 API 来源、配置参数与刷新策略</p>
                         </div>
                         <div class="panel-body">
-                            <div class="setting-group">
-                                <label for="weatherProviderSelect">天气 API</label>
+                            <div class="setting-group" id="qwTopGroup">
+                                <div class="setting-label-row">
+                                    <label for="weatherProviderSelect">天气 API</label>
+                                    <span class="qw-status-inline" id="qwStatusInline" style="display:${settings.weatherProvider === 'qweather' ? '' : 'none'};">
+                                        <span class="qw-status-dot" id="qweatherStatusDot"></span>
+                                        <span id="qweatherStatusText">检测中…</span>
+                                    </span>
+                                </div>
                                 <select id="weatherProviderSelect" aria-label="选择天气数据来源">
                                     <option value="openmeteo" ${settings.weatherProvider === 'qweather' ? '' : 'selected'}>Open-Meteo（免费，简单）</option>
                                     <option value="qweather" ${settings.weatherProvider === 'qweather' ? 'selected' : ''}>和风天气（需配置 API）</option>
                                 </select>
-                                <small>和风天气需自行申请 API Key — <a href="#" id="qweatherConfigLink" class="link-accent">${settings.qweatherApiHost && settings.qweatherApiKey ? '修改 API 配置' : '配置 API 密钥'}</a></small>
+                                <small>和风天气需 JWT 认证配置 — <a href="#" id="qweatherConfigLink" class="link-accent">${settings.qweatherApiHost && settings.qweatherKid && settings.qweatherSub && settings.qweatherPrivateKey ? '修改 API 配置' : '配置 API 认证'}</a></small>
                             </div>
-                            <div class="setting-group" id="qweatherStatusGroup" ${settings.weatherProvider === 'qweather' ? '' : 'style="display:none;"'}>
-                                <label>和风 API 状态</label>
-                                <div style="font-size:0.85rem;color:var(--text-secondary);">${settings.qweatherApiHost && settings.qweatherApiKey ? '已配置' : '未配置，请点击上方链接配置'}</div>
-                            </div>
-                            <div class="setting-group" id="alertLevelGroup" ${settings.weatherProvider === 'qweather' ? '' : 'style="display:none;"'}>
-                                <label>预警级别筛选</label>
-                                <div class="alert-level-checkboxes">
-                                    <label class="alert-level-option"><input type="checkbox" class="alert-level-cb" data-level="blue" ${(settings.alertEnabledLevels || ['blue','yellow','orange','red']).includes('blue') ? 'checked' : ''}><span class="alert-level-dot" style="background:#3b82f6;"></span>蓝色</label>
-                                    <label class="alert-level-option"><input type="checkbox" class="alert-level-cb" data-level="yellow" ${(settings.alertEnabledLevels || ['blue','yellow','orange','red']).includes('yellow') ? 'checked' : ''}><span class="alert-level-dot" style="background:#eab308;"></span>黄色</label>
-                                    <label class="alert-level-option"><input type="checkbox" class="alert-level-cb" data-level="orange" ${(settings.alertEnabledLevels || ['blue','yellow','orange','red']).includes('orange') ? 'checked' : ''}><span class="alert-level-dot" style="background:#f97316;"></span>橙色</label>
-                                    <label class="alert-level-option"><input type="checkbox" class="alert-level-cb" data-level="red" ${(settings.alertEnabledLevels || ['blue','yellow','orange','red']).includes('red') ? 'checked' : ''}><span class="alert-level-dot" style="background:#ef4444;"></span>红色</label>
+                            <!-- 城市搜索 + 已添加城市：和风天气需检测通过后方可展开 -->
+                            <div id="weatherCitySection" class="qw-city-section" style="${settings.weatherProvider === 'qweather' && !(settings.qweatherApiHost && settings.qweatherKid && settings.qweatherSub && settings.qweatherPrivateKey) ? 'max-height:0;opacity:0;' : 'max-height:900px;opacity:1;'}">
+                                <div class="setting-group">
+                                    <label>城市搜索</label>
+                                    <div class="weather-search-wrap">
+                                        <input type="text" id="weatherSearchInput" placeholder="输入城市名搜索，如：北京、上海、纽约" autocomplete="off" spellcheck="false" />
+                                        <div class="weather-search-results" id="weatherSearchResults" style="display:none;"></div>
+                                    </div>
+                                    <small>搜索后点击结果即可添加到下方列表，拖拽排序，仅第一个城市显示在主界面</small>
+                                </div>
+                                <div class="setting-group">
+                                    <label>已添加城市</label>
+                                    <div class="weather-city-list" id="weatherCityList">
+                                        ${cityListHtml}
+                                    </div>
                                 </div>
                             </div>
-                            <div class="setting-group">
-                                <label>城市搜索</label>
-                                <div class="weather-search-wrap">
-                                    <input type="text" id="weatherSearchInput" placeholder="输入城市名搜索，如：北京、上海、纽约" autocomplete="off" spellcheck="false" />
-                                    <div class="weather-search-results" id="weatherSearchResults" style="display:none;"></div>
-                                </div>
-                                <small>搜索后点击结果即可添加到下方列表，拖拽排序，仅第一个城市显示在主界面</small>
-                            </div>
-                            <div class="setting-group">
-                                <label>已添加城市</label>
-                                <div class="weather-city-list" id="weatherCityList">
-                                    ${cityListHtml}
+                            <div class="setting-group" id="alertLevelGroup" style="display:none;">
+                                <label>预警级别</label>
+                                <div class="alert-level-row">
+                                    <button type="button" class="alert-level-pill ${(settings.alertEnabledLevels || ['blue','yellow','orange','red']).includes('blue') ? 'active' : ''}" data-level="blue" style="--ac:#3b82f6;">蓝色</button>
+                                    <button type="button" class="alert-level-pill ${(settings.alertEnabledLevels || ['blue','yellow','orange','red']).includes('yellow') ? 'active' : ''}" data-level="yellow" style="--ac:#eab308;">黄色</button>
+                                    <button type="button" class="alert-level-pill ${(settings.alertEnabledLevels || ['blue','yellow','orange','red']).includes('orange') ? 'active' : ''}" data-level="orange" style="--ac:#f97316;">橙色</button>
+                                    <button type="button" class="alert-level-pill ${(settings.alertEnabledLevels || ['blue','yellow','orange','red']).includes('red') ? 'active' : ''}" data-level="red" style="--ac:#ef4444;">红色</button>
                                 </div>
                             </div>
                             <div class="setting-group">
@@ -107,13 +112,16 @@ window.SettingsModules.weather = {
 
         // ---- 天气 API 提供商切换 ----
         const weatherProviderSelect = document.getElementById('weatherProviderSelect');
-        const qweatherConfigGroup = document.getElementById('qweatherStatusGroup');
+        const qwStatusInline = document.getElementById('qwStatusInline');
+
+        // 和风检测是否已通过（false=未配置/检测中/不可用，预警区此时应折叠）
+        let qwDetectionPassed = false;
 
         function toggleWeatherProviderUI() {
             const isQweather = weatherProviderSelect.value === 'qweather';
-            qweatherConfigGroup.style.display = isQweather ? '' : 'none';
-            var alertLevelGroup = document.getElementById('alertLevelGroup');
-            if (alertLevelGroup) alertLevelGroup.style.display = isQweather ? '' : 'none';
+            if (qwStatusInline) qwStatusInline.style.display = isQweather ? '' : 'none';
+            // 预警区：仅在和风 provider 且检测通过时显示，其余一律折叠
+            updateAlertVisibility();
         }
 
         weatherProviderSelect.addEventListener('change', async () => {
@@ -126,22 +134,41 @@ window.SettingsModules.weather = {
             // 加载对应 provider 的第一个城市
             var first = getFirstCity();
             loadWeather(first);
+            // 切到和风时自动检测（通过后自动展开城市/搜索区）
+            if (provider === 'qweather') {
+                collapseCitySection();
+                await checkQweather();
+            } else {
+                setStatusUi('unk', '');
+                expandCitySection();
+            }
         });
 
-        // ---- 和风天气 API 配置（弹窗） ----
+        // ---- 和风天气 API 配置（弹窗）---- JWT 认证：Host + kid + sub + 私钥
         function openQweatherConfigDialog() {
             var host = state.settings.qweatherApiHost || '';
-            var key = state.settings.qweatherApiKey || '';
-            var html = '<h3>和风天气 API 配置</h3>' +
+            var kid = state.settings.qweatherKid || '';
+            var sub = state.settings.qweatherSub || '';
+            var priv = state.settings.qweatherPrivateKey || '';
+            var html = '<h3>和风天气 API 配置（JWT 认证）</h3>' +
                 '<div style="margin-bottom:12px;">' +
                 '<label style="display:block;font-size:0.8rem;color:var(--text-muted);margin-bottom:4px;">API Host</label>' +
                 '<input type="text" id="qweatherConfigHost" placeholder="如 abc123.xyz.qweatherapi.com" value="' + escapeHtml(host) + '" />' +
                 '</div>' +
                 '<div style="margin-bottom:12px;">' +
-                '<label style="display:block;font-size:0.8rem;color:var(--text-muted);margin-bottom:4px;">API Key</label>' +
-                '<input type="password" id="qweatherConfigKey" placeholder="输入你的 API Key" value="' + escapeHtml(key) + '" />' +
+                '<label style="display:block;font-size:0.8rem;color:var(--text-muted);margin-bottom:4px;">凭据 ID（kid）</label>' +
+                '<input type="text" id="qweatherConfigKid" placeholder="控制台-项目管理中的凭据 ID" value="' + escapeHtml(kid) + '" />' +
                 '</div>' +
-                '<small style="color:var(--text-muted);">在 <a href="#" id="qweatherConsoleLink2" class="link-accent">console.qweather.com</a> 查看专属 API Host 和创建 Key</small>' +
+                '<div style="margin-bottom:12px;">' +
+                '<label style="display:block;font-size:0.8rem;color:var(--text-muted);margin-bottom:4px;">项目 ID（sub）</label>' +
+                '<input type="text" id="qweatherConfigSub" placeholder="控制台-项目管理中的项目 ID" value="' + escapeHtml(sub) + '" />' +
+                '</div>' +
+                '<div style="margin-bottom:12px;">' +
+                '<label style="display:block;font-size:0.8rem;color:var(--text-muted);margin-bottom:4px;">Ed25519 私钥</label>' +
+                '<textarea id="qweatherConfigPrivateKey" rows="3" placeholder="-----BEGIN PRIVATE KEY-----&#10;...&#10;-----END PRIVATE KEY-----" style="width:100%;resize:vertical;font-family:monospace;">' + escapeHtml(priv) + '</textarea>' +
+                '<button class="btn btn-secondary" id="qweatherConfigGenKey" style="margin-top:8px;width:100%;">一键生成密钥对（私钥自动填入，公钥去和风登记）</button>' +
+                '</div>' +
+                '<small style="color:var(--text-muted);">和风现采用 JWT(Ed25519) 认证。请在 <a href="#" id="qweatherConsoleLink2" class="link-accent">console.qweather.com</a> 的"项目管理→添加凭据"中选择 JWT 身份认证，上传你生成的<strong>公钥</strong>；这里填写<strong>私钥</strong>、凭据 ID 与项目 ID。私钥仅在本机使用，不会上传。</small>' +
                 '<div class="dialog-btn-row" style="margin-top:16px;">' +
                 '<button class="btn btn-secondary" id="qweatherConfigCancel">取消</button>' +
                 '<button class="btn btn-primary" id="qweatherConfigSave">保存</button>' +
@@ -152,7 +179,9 @@ window.SettingsModules.weather = {
             }, { replace: false });
 
             var hostEl = modal.dialog.querySelector('#qweatherConfigHost');
-            var keyEl = modal.dialog.querySelector('#qweatherConfigKey');
+            var kidEl = modal.dialog.querySelector('#qweatherConfigKid');
+            var subEl = modal.dialog.querySelector('#qweatherConfigSub');
+            var privEl = modal.dialog.querySelector('#qweatherConfigPrivateKey');
 
             modal.dialog.querySelector('#qweatherConfigCancel').addEventListener('click', function () {
                 modal.close();
@@ -160,14 +189,16 @@ window.SettingsModules.weather = {
 
             modal.dialog.querySelector('#qweatherConfigSave').addEventListener('click', async function () {
                 state.settings.qweatherApiHost = hostEl.value.trim();
-                state.settings.qweatherApiKey = keyEl.value.trim();
+                state.settings.qweatherKid = kidEl.value.trim();
+                state.settings.qweatherSub = subEl.value.trim();
+                state.settings.qweatherPrivateKey = privEl.value.trim();
                 await saveSettings();
                 // 更新状态显示
                 updateQweatherStatus();
                 // 更新链接文字
                 var link = document.getElementById('qweatherConfigLink');
                 if (link) {
-                    link.textContent = (state.settings.qweatherApiHost && state.settings.qweatherApiKey) ? '修改 API 配置' : '配置 API 密钥';
+                    link.textContent = (state.settings.qweatherApiHost && state.settings.qweatherKid && state.settings.qweatherSub && state.settings.qweatherPrivateKey) ? '修改 API 配置' : '配置 API 认证';
                 }
                 modal.close();
                 // 重新加载天气
@@ -179,25 +210,183 @@ window.SettingsModules.weather = {
             if (consoleLink && api && api.openExternal) {
                 consoleLink.addEventListener('click', function (e) {
                     e.preventDefault();
-                    api.openExternal('https://console.qweather.com/setting');
+                    api.openExternal('https://console.qweather.com/project');
+                });
+            }
+
+            // 一键生成密钥对：主进程生成本地 ed25519，私钥自动填入，公钥弹窗供复制登记
+            var genKeyBtn = modal.dialog.querySelector('#qweatherConfigGenKey');
+            if (genKeyBtn) {
+                genKeyBtn.addEventListener('click', async function () {
+                    genKeyBtn.disabled = true;
+                    genKeyBtn.textContent = '正在生成...';
+                    try {
+                        const res = api && api.qweather && await api.qweather.genKeyPair();
+                        if (!res || !res.ok) {
+                            toast('生成失败：' + ((res && res.error) || '未知错误'));
+                            return;
+                        }
+                        // 私钥自动填入输入框
+                        privEl.value = res.privateKey.trim();
+                        // 弹窗公钥，提示去和风控制台登记
+                        var pubModal = showModal(
+                            '<h3>已生成密钥对</h3>' +
+                            '<p style="font-size:0.8rem;color:var(--text-muted);margin:0 0 8px;">' +
+                            '私钥已自动填入上方输入框，请勿外传。<br/>' +
+                            '请复制以下<b>公钥</b>，到和风控制台「项目管理 → 添加凭据 → JWT」上传登记，' +
+                            '并填写控制台返回的 Host / 凭据 ID（kid）/ 项目 ID（sub）。</p>' +
+                            '<textarea id="genKeyPublic" rows="5" readonly style="width:100%;font-family:monospace;font-size:0.78rem;resize:vertical;">' +
+                            escapeHtml(res.publicKey.trim()) + '</textarea>' +
+                            '<div class="dialog-btn-row" style="margin-top:12px;">' +
+                            '<button class="btn btn-primary" id="genKeyCopied">已去登记，关闭</button>' +
+                            '</div>',
+                            function () { /* 关闭时无额外操作 */ },
+                            { replace: false }
+                        );
+                        pubModal.dialog.querySelector('#genKeyCopied').addEventListener('click', function () {
+                            pubModal.close();
+                        });
+                    } catch (e) {
+                        console.error('密钥生成失败:', e);
+                        toast('生成失败，请稍后重试');
+                    } finally {
+                        genKeyBtn.disabled = false;
+                        genKeyBtn.textContent = '一键生成密钥对（私钥自动填入，公钥去和风登记）';
+                    }
                 });
             }
         }
 
-        function updateQweatherStatus() {
-            var statusGroup = document.getElementById('qweatherStatusGroup');
-            if (!statusGroup) return;
-            var configured = state.settings.qweatherApiHost && state.settings.qweatherApiKey;
-            var div = statusGroup.querySelector('div');
-            if (div) {
-                div.textContent = configured ? '已配置' : '未配置，请点击上方链接配置';
+        // ---- 和风 API 状态展示（内联在「天气 API」标题右侧）+ 可用性检测 ----
+        function isQweatherConfigured() {
+            return state.settings.qweatherApiHost && state.settings.qweatherKid &&
+                state.settings.qweatherSub && state.settings.qweatherPrivateKey;
+        }
+
+        // 展开 / 折叠城市搜索 + 已添加城市区（贝塞尔曲线丝滑展开）
+        function expandCitySection() {
+            var sec = document.getElementById('weatherCitySection');
+            if (!sec) return;
+            sec.style.display = '';
+            // 先确保有值可过渡：第一帧置当前高，第二帧过渡到目标高
+            sec.style.maxHeight = '0px';
+            sec.style.opacity = '1';
+            requestAnimationFrame(function () {
+                sec.style.maxHeight = sec.scrollHeight + 'px';
+            });
+            // 动画结束后解除固定高度，避免后续新增城市被裁剪（> 3 个时也能完整显示）
+            setTimeout(function () {
+                sec.style.maxHeight = 'none';
+            }, 650);
+        }
+
+        function collapseCitySection() {
+            var sec = document.getElementById('weatherCitySection');
+            if (!sec) return;
+            sec.style.maxHeight = 'none';        // 解除后取其真实高度用于收起
+            void sec.offsetHeight;
+            sec.style.maxHeight = sec.scrollHeight + 'px';
+            void sec.offsetHeight;
+            sec.style.maxHeight = '0px';
+            sec.style.opacity = '0';
+        }
+
+        // 和风 provider 下，预警区仅在「检测通过」后才显示；未配置/检测中/不可用时一律折叠
+        function updateAlertVisibility() {
+            var alertGroup = document.getElementById('alertLevelGroup');
+            if (!alertGroup) return;
+            var isQweather = weatherProviderSelect && weatherProviderSelect.value === 'qweather';
+            alertGroup.style.display = (isQweather && qwDetectionPassed) ? '' : 'none';
+        }
+
+        // mode: 'ok' | 'err' | 'loading' | 'unk'
+        function setStatusUi(mode, text) {
+            var dot = document.getElementById('qweatherStatusDot');
+            var txt = document.getElementById('qweatherStatusText');
+            var statusWrap = document.getElementById('qwStatusInline');
+            if (!txt) return;
+            updateAlertVisibility();
+            if (mode === 'ok') {
+                if (dot) { dot.className = ''; dot.style.background = '#1dc981'; }
+                txt.textContent = text || '可用';
+            } else if (mode === 'err') {
+                if (dot) { dot.className = ''; dot.style.background = '#e8463a'; }
+                txt.textContent = text || '不可用';
+            } else if (mode === 'loading') {
+                if (dot) { dot.className = 'qw-spinner'; dot.style.background = 'transparent'; }
+                txt.textContent = text || '检测中…';
+            } else {
+                if (dot) { dot.className = ''; dot.style.background = '#9ca3af'; }
+                txt.textContent = text || '';
             }
+        }
+
+        // 检测和风 API 可用性：发起一次实时天气请求（验证 Host/签名/凭据）。
+        // 检测通过后自动展开城市搜索 / 已添加城市区。
+        async function checkQweather() {
+            var statusWrap = document.getElementById('qwStatusInline');
+            if (statusWrap) statusWrap.style.display = '';
+            if (!isQweatherConfigured()) {
+                qwDetectionPassed = false;
+                setStatusUi('unk', '未配置');
+                collapseCitySection();
+                return;
+            }
+            // 进入加载状态：圆环动画
+            qwDetectionPassed = false;      // 检测中/未通过：预警区保持折叠
+            setStatusUi('loading', '检测中…');
+            // 取城市发起真实请求；若未添加城市，则用内置默认城市（北京）作为探测目标，
+            // 仍能验证 Host / JWT 签名 / 凭据是否有效。
+            var first = getFirstCity();
+            try {
+                var loc = (first && first.locationId) || '101010100'; // 默认探测城市：北京
+                var getApi = api && api.qweather && api.qweather.get;
+                var res = getApi ? await getApi({ endpoint: '/v7/weather/now', query: { location: loc } })
+                                 : { ok: false, error: 'NO_CLIENT' };
+                if (res && res.ok && res.data && res.data.code === '200') {
+                    qwDetectionPassed = true;   // 检测通过：预警区才显示
+                    setStatusUi('ok', '可用');
+                    expandCitySection();   // 检测通过，丝滑展开城市区
+                } else if (!res || !res.ok) {
+                    var rerr = res && res.error ? res.error : '';
+                    setStatusUi('err', '不可用 · ' + { NO_CONFIG: '未配置完整', NO_CLIENT: '组件未加载' }[rerr] || rerr || '请求失败');
+                    collapseCitySection();
+                } else {
+                    setStatusUi('err', '返回异常 code=' + (res.data && res.data.code));
+                    collapseCitySection();
+                }
+            } catch (e) {
+                console.warn('[qweather] 可用性检测失败:', e);
+                var reason = {
+                    NO_CONFIG: '未配置完整',
+                    PRIVATE_KEY_MISSING: '私钥缺失',
+                    NO_CLIENT: '组件未加载',
+                    UNKNOWN: '未知错误'
+                }[e.message];
+                setStatusUi('err', '不可用 · ' + (reason || e.message || '请求失败'));
+                collapseCitySection();
+            }
+        }
+
+        function updateQweatherStatus() {
+            if (!isQweatherConfigured()) {
+                setStatusUi('unk', '未配置');
+                collapseCitySection();
+                return;
+            }
+            // 配置完整：自动发起一次检测（通过则展开城市区）
+            checkQweather();
         }
 
         document.getElementById('qweatherConfigLink').addEventListener('click', function (e) {
             e.preventDefault();
             openQweatherConfigDialog();
         });
+
+        // 绑定初始化：若当前为和风且已配置，自动检测
+        if (weatherProviderSelect.value === 'qweather' && isQweatherConfigured()) {
+            updateQweatherStatus();
+        }
 
         // ---- 城市搜索 ----
         const searchInput = document.getElementById('weatherSearchInput');
@@ -209,7 +398,7 @@ window.SettingsModules.weather = {
             var kw = searchInput.value.trim();
             clearTimeout(searchTimer);
             if (!kw) {
-                searchResults.style.display = 'none';
+                hideSearchResults();
                 return;
             }
             searchTimer = setTimeout(function () {
@@ -222,16 +411,67 @@ window.SettingsModules.weather = {
                 var first = searchResults.querySelector('.weather-search-item');
                 if (first) first.click();
             } else if (e.key === 'Escape') {
-                searchResults.style.display = 'none';
+                hideSearchResults();
                 searchInput.blur();
             }
         });
 
         document.addEventListener('click', function (e) {
             if (!e.target.closest('.weather-search-wrap')) {
-                searchResults.style.display = 'none';
+                hideSearchResults();
             }
         });
+
+        // ---- 搜索下拉显示/隐藏（复刻作业搜索微窗：spring 就地生长）----
+        function showSearchResults() {
+            searchResults.classList.add('qw-magic');
+            // 第 1 帧：归零起点，为生长动画定格
+            searchResults.style.display = 'block';
+            searchResults.style.height = '0px';
+            searchResults.style.opacity = '0';
+            searchResults.style.overflow = 'hidden';
+            // 第 2 帧：从 0 生长到内容高度（spring 缓动），透明度同步介入
+            requestAnimationFrame(function () {
+                var target = searchResults.scrollHeight;
+                var cap = 240;                          // 与 CSS max-height 一致，超高则容器内滚动
+                searchResults.style.height = Math.min(target, cap) + 'px';
+                searchResults.style.opacity = '1';
+                searchResults.style.overflow = (target > cap) ? 'auto' : 'hidden';
+            });
+            // 逐项错峰淡入（下落 + 清晰化）
+            Array.prototype.forEach.call(searchResults.children, function (el) {
+                el.style.opacity = '0';
+                el.style.transform = 'translateY(5px)';
+                el.style.transition = 'opacity .22s var(--transition-smooth), transform .3s var(--transition-spring)';
+            });
+            requestAnimationFrame(function () {
+                Array.prototype.forEach.call(searchResults.children, function (el, i) {
+                    el.style.transitionDelay = (90 + i * 35) + 'ms';
+                });
+            });
+            // 下一帧让项过渡到原位
+            requestAnimationFrame(function () {
+                Array.prototype.forEach.call(searchResults.children, function (el) {
+                    el.style.opacity = '1';
+                    el.style.transform = 'translateY(0)';
+                });
+            });
+        }
+
+        function hideSearchResults() {
+            searchResults.classList.remove('qw-magic');
+            searchResults.style.height = '';
+            searchResults.style.opacity = '';
+            searchResults.style.overflow = '';
+            // 还原项样式，供下次重复使用
+            Array.prototype.forEach.call(searchResults.children, function (el) {
+                el.style.opacity = '';
+                el.style.transform = '';
+                el.style.transition = '';
+                el.style.transitionDelay = '';
+            });
+            searchResults.style.display = 'none';
+        }
 
         async function doSearch(keyword) {
             var mySeq = ++searchSeq;
@@ -240,19 +480,19 @@ window.SettingsModules.weather = {
                 if (mySeq !== searchSeq) return;
                 if (!results || results.length === 0) {
                     searchResults.innerHTML = '<div class="weather-search-empty">未找到"' + escapeHtml(keyword) + '"，请换个关键词试试</div>';
-                    searchResults.style.display = 'block';
+                    showSearchResults();
                     return;
                 }
                 renderSearchResults(results);
             } catch (err) {
                 if (mySeq !== searchSeq) return;
                 if (err.message === 'NO_CONFIG') {
-                    searchResults.innerHTML = '<div class="weather-search-empty">请先配置和风天气 API Host 和 Key</div>';
-                    searchResults.style.display = 'block';
+                    searchResults.innerHTML = '<div class="weather-search-empty">请先配置和风天气 JWT（Host + kid/sub/私钥）</div>';
+                    showSearchResults();
                     return;
                 }
                 searchResults.innerHTML = '<div class="weather-search-empty">搜索失败，请重试</div>';
-                searchResults.style.display = 'block';
+                showSearchResults();
             }
         }
 
@@ -266,12 +506,12 @@ window.SettingsModules.weather = {
                     (region ? '<span class="weather-search-item-region">' + escapeHtml(region) + '</span>' : '');
                 item.addEventListener('click', function () {
                     addCity(city);
-                    searchResults.style.display = 'none';
+                    hideSearchResults();
                     searchInput.value = '';
                 });
                 searchResults.appendChild(item);
             });
-            searchResults.style.display = 'block';
+            showSearchResults();
         }
 
         function addCity(city) {
@@ -286,7 +526,7 @@ window.SettingsModules.weather = {
             var provider = state.settings.weatherProvider || 'openmeteo';
             var entry;
             if (provider === 'qweather') {
-                entry = { id: city.id, name: city.name, locationId: city.locationId, country: city.country || '', admin1: city.admin1 || '', timezone: city.timezone || 'auto' };
+                entry = { id: city.id, name: city.name, locationId: city.locationId, lat: city.lat, lon: city.lon, country: city.country || '', admin1: city.admin1 || '', timezone: city.timezone || 'auto' };
             } else {
                 entry = { id: city.id, name: city.name, lat: city.lat, lon: city.lon, country: city.country || '', admin1: city.admin1 || '', timezone: city.timezone || 'auto' };
             }
@@ -414,12 +654,13 @@ window.SettingsModules.weather = {
             dragSrcIndex = null;
         }
 
-        // ---- 预警级别筛选 ----
-        document.querySelectorAll('.alert-level-cb').forEach(function (cb) {
-            cb.addEventListener('change', async function () {
-                var levels = Array.from(document.querySelectorAll('.alert-level-cb'))
-                    .filter(function (c) { return c.checked; })
-                    .map(function (c) { return c.dataset.level; });
+        // ---- 预警级别筛选（色块 pill：点击切换选中态，醒目排开不换行）----
+        document.querySelectorAll('.alert-level-pill').forEach(function (pill) {
+            pill.addEventListener('click', async function () {
+                pill.classList.toggle('active');
+                var levels = Array.from(document.querySelectorAll('.alert-level-pill'))
+                    .filter(function (p) { return p.classList.contains('active'); })
+                    .map(function (p) { return p.dataset.level; });
                 state.settings.alertEnabledLevels = levels;
                 await saveSettings();
                 refilterAlerts();

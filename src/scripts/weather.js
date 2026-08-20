@@ -110,6 +110,8 @@
                 name: loc.name,
                 provider: 'qweather',
                 locationId: loc.id,
+                lat: loc.lat,
+                lon: loc.lon,
                 country: loc.country || '',
                 admin1: loc.adm1 || '',
                 timezone: loc.tz || 'auto'
@@ -168,25 +170,17 @@
     // ============================================
     // 和风天气实现
     // ============================================
-    async function qweatherFetch(endpoint, params) {
-        const { qweatherApiHost, qweatherApiKey } = state.settings;
-        if (!qweatherApiHost || !qweatherApiKey) {
-            throw new Error('NO_CONFIG');
+    async function qweatherFetch(endpoint, params, loc) {
+        // JWT 认证：委托主进程签名并请求，渲染层不接触私钥。
+        // 配置缺失时主进程返回 NO_CONFIG；HTTP 层错误（403 等）原样抛给调用方。
+        // loc 可选：{ lat, lon }，用于 endpoint 中的 {lat}/{lon} 占位替换（新版 weatheralert 按经纬度）。
+        const api = window.electronAPI && window.electronAPI.qweather;
+        if (!api) throw new Error('NO_CLIENT');
+        const res = await api.get({ endpoint, query: params, lat: loc && loc.lat, lon: loc && loc.lon });
+        if (!res || !res.ok) {
+            throw new Error(res && res.error ? res.error : 'HTTP 请求失败');
         }
-
-        const cleanHost = qweatherApiHost.replace(/^https?:\/\//, '').replace(/\/$/, '');
-        const query = new URLSearchParams({ ...params, key: qweatherApiKey }).toString();
-        const url = `https://${cleanHost}${endpoint}?${query}`;
-
-        const resp = await fetch(url, {
-            headers: { 'X-QW-Api-Key': qweatherApiKey },
-        });
-
-        if (!resp.ok) {
-            throw new Error(`HTTP ${resp.status}`);
-        }
-
-        return resp.json();
+        return res.data;
     }
 
     async function loadQweather(city) {
@@ -231,7 +225,7 @@
                 emojiEl().innerHTML = emoji('⚠️');
                 tempEl().textContent = '--°C';
                 descEl().textContent = '未配置 API';
-                toast('请先在设置中配置和风天气 API Host 和 Key');
+                toast('请先在设置中配置和风天气 JWT（Host + kid/sub/私钥）');
                 return;
             }
             handleFallback(city.name, err);
@@ -242,6 +236,12 @@
     // 天气预警（仅和风天气支持）
     // ============================================
     var ALERT_LEVEL_ORDER = { red: 4, orange: 3, yellow: 2, blue: 1 };
+
+    /** 把归一化级别转成显示用中文（新版 weatheralert 用 color.code，旧版用中文 levelStr） */
+    function levelLabel(level) {
+        var map = { red: '红色', orange: '橙色', yellow: '黄色', blue: '蓝色', unknown: '' };
+        return map[level] || '';
+    }
     var ALERT_LEVEL_COLORS = {
         blue:   { bg: 'rgba(59,130,246,0.14)',  border: 'rgba(59,130,246,0.35)',  dot: '#3b82f6', text: '#1e40af' },
         yellow: { bg: 'rgba(234,179,8,0.16)',   border: 'rgba(234,179,8,0.38)',   dot: '#eab308', text: '#854d0e' },
@@ -257,6 +257,16 @@
     var alertCountEl   = function () { return state.dom.alertCount(); };
 
     function normalizeAlertLevel(alert) {
+        // 新版 weatheralert：颜色取 color.code（支持 blue/yellow/amber/orange/red 等）
+        if (alert.color && typeof alert.color.code === 'string') {
+            var cci = alert.color.code.toLowerCase();
+            if (cci.indexOf('red') >= 0) return 'red';
+            if (cci.indexOf('orange') >= 0) return 'orange';
+            if (cci.indexOf('amber') >= 0 || cci.indexOf('yellow') >= 0) return 'yellow';
+            if (cci.indexOf('blue') >= 0) return 'blue';
+            return 'unknown';
+        }
+        // 旧版 v7：severityColor / level 兼容
         var sc = (alert.severityColor || '').toLowerCase();
         if (sc.indexOf('blue') >= 0) return 'blue';
         if (sc.indexOf('yellow') >= 0) return 'yellow';
@@ -280,11 +290,17 @@
 
     async function fetchQweatherAlerts() {
         var firstCity = getFirstCity();
-        if (!firstCity || !firstCity.locationId) return [];
+        if (!firstCity) return [];
+        // 新版预警按经纬度查询，旧数据若缺经纬度则无法获取（需在设置中重新搜索添加城市）
+        if (firstCity.lat == null || firstCity.lon == null) {
+            return [];
+        }
         try {
-            var data = await qweatherFetch('/v7/warning/now', { location: firstCity.locationId });
-            if (data.code !== '200') return [];
-            return data.warning || [];
+            var res = await qweatherFetch('/weatheralert/v1/current/{lat}/{lon}', null, {
+                lat: firstCity.lat,
+                lon: firstCity.lon
+            });
+            return (res && Array.isArray(res.alerts)) ? res.alerts : [];
         } catch (err) {
             console.warn('天气预警获取失败:', err);
             return [];
@@ -319,9 +335,8 @@
 
         var txt = alertTextEl();
         if (txt) {
-            var typeName = top.typeName || top.type || '天气';
-            var levelStr = top.level || '';
-            txt.textContent = '\u26A0\uFE0F ' + typeName + levelStr + '预警';
+            var typeName = (top.eventType && top.eventType.name) || top.typeName || top.type || '天气';
+            txt.textContent = '\u26A0\uFE0F ' + typeName + levelLabel(level) + '预警';
             txt.style.color = c.text;
         }
 
@@ -370,18 +385,19 @@
         var cardsHtml = sortedAlerts.map(function (alert) {
             var level = normalizeAlertLevel(alert);
             var c = ALERT_LEVEL_COLORS[level] || ALERT_LEVEL_COLORS.yellow;
-            var typeName = alert.typeName || alert.type || '天气预警';
-            var levelStr = alert.level || '';
-            var sender = alert.sender || '';
-            var pubTime = fmtTime(alert.pubTime);
-            var startTime = fmtTime(alert.startTime);
-            var endTime = fmtTime(alert.endTime);
-            var text = alert.text || '';
+            var typeName = (alert.eventType && alert.eventType.name) || alert.typeName || alert.type || '天气预警';
+            var levelStr = levelLabel(level) || (alert.level || '');
+            var sender = alert.senderName || alert.sender || '';
+            // 新版用 effectiveTime（生效）/ onsetTime（开始）/ expireTime（失效）；旧版 pubTime/startTime/endTime
+            var pubTime = fmtTime(alert.effectiveTime || alert.pubTime || alert.issuedTime);
+            var startTime = fmtTime(alert.onsetTime || alert.startTime);
+            var endTime = fmtTime(alert.expireTime || alert.endTime);
+            var text = alert.description || alert.text || alert.headline || '';
 
             return '<div style="background:' + c.bg + ';border-left:4px solid ' + c.dot + ';border-radius:12px;padding:14px 16px;margin-bottom:10px;">' +
                 '<div style="font-weight:700;font-size:1rem;color:' + c.text + ';margin-bottom:6px;">' + escapeHtml(typeName) + (levelStr ? ' ' + escapeHtml(levelStr) + '预警' : '预警') + '</div>' +
                 (sender ? '<div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:3px;">\uD83D\uDCE2 ' + escapeHtml(sender) + '</div>' : '') +
-                (pubTime ? '<div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:3px;">\uD83D\uDD50 发布于 ' + escapeHtml(pubTime) + '</div>' : '') +
+                (pubTime ? '<div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:3px;">\uD83D\uDD50 生效于 ' + escapeHtml(pubTime) + '</div>' : '') +
                 ((startTime || endTime) ? '<div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:8px;">\u23F1 ' + escapeHtml(startTime) + ' ~ ' + escapeHtml(endTime) + '</div>' : '') +
                 (text ? '<div style="font-size:0.86rem;line-height:1.6;color:var(--text-primary);white-space:pre-wrap;">' + escapeHtml(text) + '</div>' : '') +
                 '</div>';

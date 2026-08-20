@@ -37,7 +37,7 @@
 | 作业卡片展示     | 按日期展示各学科作业，卡片采用学科色整体追色 + 瀑布流双栏布局（支持 3 列），编号可美化为圆圈徽章                                |
 | 作业增删改      | 底栏学科按钮快速添加（回车自动编号）；卡片点击展开编辑/删除（二次确认）                                                |
 | 晚修进度       | 顶栏实时显示当前处于第几节晚修、已过时长与进度条                                                           |
-| 天气显示       | 双 API 支持：Open-Meteo（免费）与和风天气（精准，需 API Key）；含离线缓存；**多城市搜索管理**（可搜索全球/全国城市，拖拽排序）          |
+| 天气显示       | 双 API 支持：Open-Meteo（免费）与和风天气（精准，需 JWT 认证）；含离线缓存；**多城市搜索管理**（可搜索全球/全国城市，拖拽排序）          |
 | 天气预警       | 和风天气专属：蓝/黄/橙/红四级预警，顶栏胶囊展示，点击查看详情，可按级别筛选                                            |
 | **浮窗模式（画中画）** | 每个作业卡片变成独立无边框置顶小窗，贴屏幕右侧竖排；支持系统级拖动、贴边隐藏（探头预展）、放大回主窗口、单卡关闭                    |
 | **备份与恢复**   | 设置按面板分组勾选导出、作业按日期范围/全部导出（可含归档）；恢复默认"覆盖 + 恢复前自动快照"，支持手动合并                    |
@@ -577,7 +577,10 @@ save() 加密开关：
     weatherRefreshInterval: 30,     // 天气刷新间隔(分钟)，0=不刷新
     weatherRefreshMode: 'foreground', // 'always' | 'foreground'（默认仅前台更省资源）
     qweatherApiHost: '',            // 和风天气专属 API Host
-    qweatherApiKey: '',             // 和风天气 API Key
+    qweatherApiKey: '',             // 和风天气 API Key（旧认证，JWT 迁移后保留兼容）
+    qweatherKid: '',                // 和风 JWT 凭据 ID（控制台-项目管理查看）
+    qweatherSub: '',                // 和风 JWT 项目 ID（sub 签发主体）
+    qweatherPrivateKey: '',         // 和风 Ed25519 私钥（PEM，仅主进程用于签名，渲染层不接触）
     alertEnabledLevels: ['blue','yellow','orange','red'], // 预警级别筛选
     bgRefreshInterval: 30,          // 背景刷新频率(分钟)
     bgSource: 'upx8',              // 背景图源 'upx8' | 'xxapi'
@@ -649,23 +652,28 @@ save() 加密开关：
 
 | 函数                              | 说明                                                                  |
 | ------------------------------- | ------------------------------------------------------------------- |
-| `loadWeather(city)`             | 根据 city.provider 分发：Open-Meteo 用坐标查 /forecast；和风天气用 LocationID 查 /v7/weather/now |
-| `searchCities(keyword)`         | **统一城市搜索入口**：Open-Meteo 用 Geocoding API（过滤 PPL 人口聚居地，带请求序号防竞态）；和风用 GeoAPI `/geo/v2/city/lookup`。返回统一格式 `[{id, name, provider, lat/lon 或 locationId, ...}]` |
+| `loadWeather(city)`             | 根据 city.provider 分发：Open-Meteo 用坐标查 /forecast；和风天气用 LocationID 查 /v7/weather/now（新版专属 Host + JWT 认证） |
+| `searchCities(keyword)`         | **统一城市搜索入口**：Open-Meteo 用 Geocoding API（过滤 PPL 人口聚居地，带请求序号防竞态）；和风用 GeoAPI `/geo/v2/city/lookup`（返回并缓存 lat/lon）。返回统一格式 `[{id, name, provider, lat/lon 或 locationId, ...}]` |
 | `setupWeatherRefresh()`         | 启动定时刷新（weatherRefreshInterval + weatherRefreshMode），监听 visibilitychange 回前台时补刷 |
 | `restartWeatherRefresh()`       | 设置变更后重启定时器                                                          |
-| `refreshAlerts()`               | 拉取和风天气预警 `/v7/warning/now`（取第一个城市的 locationId），过滤后渲染顶栏预警胶囊          |
+| `refreshAlerts()`               | 拉取和风天气预警 `/weatheralert/v1/current/{lat}/{lon}`（用第一个城市的经纬度），过滤后渲染顶栏预警胶囊            |
 | `refilterAlerts()`              | 预警级别筛选变更后即时重新过滤（不重新请求）                                              |
 
 **双实现**：
 
 - **Open-Meteo** (`loadOpenMeteo`)：`api.open-meteo.com/v1/forecast?...&current=temperature_2m,weather_code`，`weatherCodeDict` 转 emoji。
-- **和风天气** (`loadQweather`)：需要 API Host + Key（配置在设置弹窗）；`qweatherFetch()` 统一封装（header 带 `X-QW-Api-Key`）；`/v7/weather/now` 实时天气，`qweatherIconMap` 转 emoji；未配置时提示并显示"未配置 API"。
+- **和风天气** (`loadQweather`)：需要 Host + JWT 凭据（kid / sub / Ed25519 私钥，配置在设置弹窗）；`qweatherFetch()` 统一封装（渲染层经 IPC 调主进程 `qweather:get`，主进程用 `qweather-auth.js` 生成 JWT 并以 `Authorization: Bearer <token>` 请求，**私钥只存在于主进程**）；`/v7/weather/now` 实时天气，`qweatherIconMap` 转 emoji；未配置时提示并显示"未配置 API"。
 
 **天气预警**（仅和风天气）：
 
 - 蓝色 / 黄色 / 橙色 / 红色四级，`normalizeAlertLevel()` 同时识别英文 severityColor 和中文级别名。
 - 顶栏预警胶囊显示最高级别预警（配色按级别），多条时显示 `+N`，点击展开详情模态框（发布单位/时间/生效时段/正文）。
 - 可在设置中按级别筛选（`alertEnabledLevels`）。
+
+**身份认证（JWT）**：和风旧版 `/v7/warning/now` 接口已废弃（返回 403 Deprecated），URL 认证的 API Key 逐步被 JWT 取代。本软件已完整迁移为 JWT（EdDSA/Ed25519）：
+
+- header：`{alg:'EdDSA', kid}`；payload：`{sub, iat: now-30, exp: now+900}`；签名用 `crypto.sign(null, signingInput, key)`（不能用 createSign 流水线，Node 22 会报 Invalid digest）。
+- 每次请求动态签一个新鲜令牌，主进程统一签发与请求，渲染层始终不接触私钥。
 
 **离线缓存**：天气数据缓存到 `localStorage`（30 分钟 TTL），网络失败时降级显示缓存数据（过期则标注"离线"）。
 
@@ -842,7 +850,7 @@ save() 加密开关：
 | 面板     | 备份字段                                                                                     |
 | ------ | ---------------------------------------------------------------------------------------- |
 | 常规设置   | `eveningSections`                                                                          |
-| 天气     | `weatherProvider, openmeteoCities, qweatherCities, qweatherApiHost, qweatherApiKey, alertEnabledLevels, weatherRefreshInterval, weatherRefreshMode` |
+| 天气     | `weatherProvider, openmeteoCities, qweatherCities, qweatherApiHost, qweatherApiKey, qweatherKid, qweatherSub, qweatherPrivateKey, alertEnabledLevels, weatherRefreshInterval, weatherRefreshMode` |
 | 个性化    | `bgSource, bgRefreshInterval, bgRefreshMode, cardColumns, autoNumber, beautifyNumber`     |
 | 辅助功能   | `contentFontSize, reduceAnimation, blurBars, blurCard, blurModal`                        |
 | QQ监听   | `qq`（整个对象）                                                                                 |
@@ -868,7 +876,7 @@ save() 加密开关：
 - `openRestoreDialog()` — 选文件 → 解析校验 → **先自动快照当前数据** → 覆盖恢复或逐项合并（设置按面板粒度、作业按 id 合并、归档走主进程按月合并写回）
 - 恢复完成后自动重启天气/背景定时器、重应用样式、全量重渲染
 
-> ⚠️ 备份文件包含和风天气 API Key 等敏感信息，导出弹窗中有明确提示。
+> ⚠️ 备份文件包含和风天气 JWT 私钥等敏感信息，导出弹窗中有明确提示。
 
 ### 6.17 settings.js + settings/ — 设置面板 ★
 
@@ -881,7 +889,7 @@ save() 加密开关：
 | 面板     | 文件                          | 配置项                                                                                     |
 | ------ | --------------------------- | --------------------------------------------------------------------------------------- |
 | 常规设置   | `settings/general.js`       | 晚修时段（实时校验）、开机自启                                                                          |
-| 天气     | `settings/weather.js`       | API 提供商切换、**城市搜索 + 列表管理（拖拽排序/删除）**、和风天气配置（Host/Key，**独立弹窗**）、预警级别筛选、刷新频率/模式        |
+| 天气     | `settings/weather.js`       | API 提供商切换、**城市搜索 + 列表管理（拖拽排序/删除）**、和风天气配置（Host + JWT 四字段：kid/sub/私钥，**独立弹窗**）、预警级别筛选、刷新频率/模式        |
 | 个性化    | `settings/personal.js`      | 背景来源(upx8/xxapi)、背景刷新频率/模式、立即换图、卡片列数、美化编号开关                                              |
 | 辅助功能   | `settings/accessibility.js` | **作业字号三档**（小20/中26/大32，分段控制器）、**减弱动画**（body.reduce-anim）、**三路模糊开关**（顶底栏/卡片/弹窗，即时切换 body class） |
 | 学科管理   | `settings/subjects.js`      | 学科列表（删除）、添加新学科（名称 + **ColorPicker 五色系取色器**）                                              |
@@ -1481,7 +1489,7 @@ border: 1px solid var(--glass-border);
 - `default-src 'self'`：默认只允许同源
 - `script-src 'self'`：脚本只允许同源（防 XSS）
 - `img-src 'self' data: https: file:`：图片允许 https 和本地 file://
-- `connect-src`：仅允许 open-meteo、qweatherapi、upx8、xxapi 等域名（含 Geocoding API）
+- `connect-src`：仅允许 open-meteo、qweatherapi、upx8、xxapi 等域名（含 Geocoding API）。注：和风天请求已改由**主进程 `net.fetch`** 发起（JWT 私钥/签名在 main/），不走渲染 CSP
 
 ---
 

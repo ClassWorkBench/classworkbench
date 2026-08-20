@@ -127,17 +127,73 @@
 }
 body.capturing .alert-area { opacity: 0; visibility: hidden; }
 
-/* 预警级别筛选复选框（设置面板内） */
-.alert-level-checkboxes { display: flex; gap: 8px; flex-wrap: wrap; }
-.alert-level-option {
-    display: flex; align-items: center; gap: 5px;
-    padding: 7px 12px; border-radius: 10px;
-    background: rgba(0,0,0,0.03); cursor: pointer;
-    font-size: 0.85rem; font-weight: 600; transition: background 0.2s;
+/* 预警级别筛选 pill（设置面板内）：色块排开，点击切换激活态 */
+.alert-level-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: nowrap;
 }
-@media (hover: hover) { .alert-level-option:hover { background: rgba(0,0,0,0.06); } }
-.alert-level-option input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--accent); cursor: pointer; }
-.alert-level-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; box-shadow: 0 0 0 2px rgba(255,255,255,0.4); }
+.alert-level-pill {
+    flex: 1;
+    padding: 7px 0;
+    border-radius: 10px;
+    text-align: center;
+    font-size: 0.85rem;
+    font-weight: 600;
+    white-space: nowrap;
+    cursor: pointer;
+    color: var(--ac); /* 由内联 --ac 提供 */
+    background: rgba(0, 0, 0, 0.04);
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    transition: background 0.2s, color 0.2s, box-shadow 0.2s;
+}
+.alert-level-pill.active {
+    color: #fff;
+    background: var(--ac);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+}
+@media (hover: hover) { .alert-level-pill:hover { filter: brightness(1.05); } }
+
+/* 和风 API 内联状态（「天气 API」标题右侧）+ 圆环加载 */
+.setting-label-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+.setting-label-row label { margin-bottom: 0; }
+.qw-status-inline {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+.qw-status-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #9ca3af;
+    flex: 0 0 auto;
+}
+.qw-spinner {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    border: 2px solid rgba(128, 128, 128, 0.3);
+    border-top-color: #4f7cff;
+    animation: qw-spin 0.8s linear infinite;
+    box-sizing: border-box;
+    flex: 0 0 auto;
+}
+@keyframes qw-spin { to { transform: rotate(360deg); } }
+
+/* 城市搜索 + 已添加城市：检测通过前折叠，展开时贝塞尔丝滑过渡 */
+.qw-city-section {
+    overflow: hidden;
+    transition: max-height 0.55s cubic-bezier(0.33, 1, 0.68, 1), opacity 0.45s ease;
+}
 
 /* 作业卡片 —— 与顶/底栏同质感的白玻璃 + 学科色追色（整体底色调/圆点/标题/数字圆圈） */
 .homework-card {
@@ -1526,7 +1582,7 @@ body.reduce-anim .segmented .seg-btn {
  * 专业系统设置面板（Windows/macOS 风格分栏）
  * ============================================ */
 .dialog.settings-dialog {
-    max-width: 640px;
+    max-width: 720px;
     padding: 0;
     overflow: hidden;
     gap: 0;
@@ -1534,7 +1590,7 @@ body.reduce-anim .segmented .seg-btn {
 .settings-shell {
     display: flex;
     width: 100%;
-    height: min(400px, 60vh);
+    height: min(480px, 72vh);
     min-height: 0;
 }
 
@@ -1912,8 +1968,21 @@ body.reduce-anim .segmented .seg-btn {
 /* 老师列表项 */
 .teacher-list-empty {
     opacity: 0.6;
-    padding: 12px;
+    padding: 4px 0;
+    font-size: 0.8rem;
     text-align: center;
+}
+/* 老师列表项紧凑化，与学科管理项保持同高 */
+#panel-qq .subject-manage-item {
+    padding: 4px 6px;
+}
+#panel-qq .subject-manage-item .teacher-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+#panel-qq .subject-manage-item .teacher-subject-select {
+    flex-shrink: 0;
 }
 .subject-manage-item .teacher-name {
     flex: 1;
@@ -1933,10 +2002,38 @@ body.reduce-anim .segmented .seg-btn {
     opacity: 0.7;
     line-height: 1.7;
 }
+/* 老师联系人容器（仿学科管理合体风格） */
+.subject-manage-box {
+    background: rgba(0, 0, 0, 0.03);
+    border-radius: 10px;
+    padding: 8px;
+    margin-top: 4px;
+}
 .qq-add-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
     margin-top: 8px;
-    flex-wrap: wrap;
-    gap: 8px;
+}
+.qq-add-row .input-flex {
+    min-width: 0; /* 允许昵称输入框在空间不足时压缩 */
+}
+.qq-add-row select {
+    flex-shrink: 0;
+    max-width: 120px;
+}
+.qq-add-row .btn {
+    flex-shrink: 0;
+}
+/* 老师添加行控件紧凑化，与学科管理添加行同高 */
+#panel-qq .qq-add-row input,
+#panel-qq .qq-add-row select,
+#panel-qq .qq-add-row button {
+    height: 24px;
+    padding: 2px 8px;
+    font-size: 0.82rem;
+    line-height: 1;
+    border-radius: 8px;
 }
 /* 确认弹窗 */
 .confirm-text {
@@ -2407,6 +2504,30 @@ body.reduce-anim .segmented .seg-btn {
     box-shadow: 0 4px 16px rgba(0,0,0,0.1);
 }
 
+/* 搜索下拉：复刻作业搜索微窗 —— spring 就地生长 + 项错峰淡入 */
+.weather-search-results {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    z-index: 100;
+    background: rgba(255, 255, 255, 0.98);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    border-radius: 10px;
+    margin-top: 4px;
+    max-height: 240px;
+    overflow-y: auto;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+    transition: height 0.45s var(--transition-spring), opacity 0.28s var(--transition-smooth);
+    height: 0;
+    opacity: 0;
+}
+.weather-search-results.qw-magic {
+    height: auto; /* 实际高度由 JS 显式控制，此值被内联覆盖 */
+}
+
 .weather-search-item {
     display: flex;
     align-items: center;
@@ -2415,6 +2536,7 @@ body.reduce-anim .segmented .seg-btn {
     cursor: pointer;
     transition: background 0.15s;
     border-bottom: 1px solid var(--border);
+    will-change: opacity, transform;
 }
 
 .weather-search-item:last-child {
