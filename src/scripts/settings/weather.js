@@ -149,7 +149,8 @@ window.SettingsModules.weather = {
             var host = state.settings.qweatherApiHost || '';
             var kid = state.settings.qweatherKid || '';
             var sub = state.settings.qweatherSub || '';
-            var priv = state.settings.qweatherPrivateKey || '';
+            // 私钥绝不回显明文：渲染层只拿到掩码（*configured*），输入框留空 = 保持原值
+            var hasPriv = !!state.settings.qweatherPrivateKey;
             var html = '<h3>和风天气 API 配置（JWT 认证）</h3>' +
                 '<div style="margin-bottom:12px;">' +
                 '<label style="display:block;font-size:0.8rem;color:var(--text-muted);margin-bottom:4px;">API Host</label>' +
@@ -165,10 +166,13 @@ window.SettingsModules.weather = {
                 '</div>' +
                 '<div style="margin-bottom:12px;">' +
                 '<label style="display:block;font-size:0.8rem;color:var(--text-muted);margin-bottom:4px;">Ed25519 私钥</label>' +
-                '<textarea id="qweatherConfigPrivateKey" rows="3" placeholder="-----BEGIN PRIVATE KEY-----&#10;...&#10;-----END PRIVATE KEY-----" style="width:100%;resize:vertical;font-family:monospace;">' + escapeHtml(priv) + '</textarea>' +
+                (hasPriv
+                    ? '<small style="color:var(--text-success);display:block;margin-bottom:4px;">✓ 已配置。输入框留空保持不变，如需更换请在下方粘贴新私钥。</small>'
+                    : '') +
+                '<textarea id="qweatherConfigPrivateKey" rows="3" placeholder="-----BEGIN PRIVATE KEY-----&#10;...&#10;-----END PRIVATE KEY-----&#10;（留空=不修改已配置的私钥）" style="width:100%;resize:vertical;font-family:monospace;"></textarea>' +
                 '<button class="btn btn-secondary" id="qweatherConfigGenKey" style="margin-top:8px;width:100%;">一键生成密钥对（私钥自动填入，公钥去和风登记）</button>' +
                 '</div>' +
-                '<small style="color:var(--text-muted);">和风现采用 JWT(Ed25519) 认证。请在 <a href="#" id="qweatherConsoleLink2" class="link-accent">console.qweather.com</a> 的"项目管理→添加凭据"中选择 JWT 身份认证，上传你生成的<strong>公钥</strong>；这里填写<strong>私钥</strong>、凭据 ID 与项目 ID。私钥仅在本机使用，不会上传。</small>' +
+                '<small style="color:var(--text-muted);">和风现采用 JWT(Ed25519) 认证。请在 <a href="#" id="qweatherConsoleLink2" class="link-accent">console.qweather.com</a> 的"项目管理→添加凭据"中选择 JWT 身份认证，上传你生成的<strong>公钥</strong>；这里填写<strong>私钥</strong>、凭据 ID 与项目 ID。私钥仅在本机加密存储，不会明文回显或上传。</small>' +
                 '<div class="dialog-btn-row" style="margin-top:16px;">' +
                 '<button class="btn btn-secondary" id="qweatherConfigCancel">取消</button>' +
                 '<button class="btn btn-primary" id="qweatherConfigSave">保存</button>' +
@@ -191,7 +195,9 @@ window.SettingsModules.weather = {
                 state.settings.qweatherApiHost = hostEl.value.trim();
                 state.settings.qweatherKid = kidEl.value.trim();
                 state.settings.qweatherSub = subEl.value.trim();
-                state.settings.qweatherPrivateKey = privEl.value.trim();
+                // 私钥：留空 = 保持原值（不再覆盖成空）；填写了才更新
+                var newPriv = privEl.value.trim();
+                if (newPriv) state.settings.qweatherPrivateKey = newPriv;
                 await saveSettings();
                 // 更新状态显示
                 updateQweatherStatus();
