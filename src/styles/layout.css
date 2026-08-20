@@ -116,7 +116,8 @@ body:has(.bg-layer.loaded) .bg-mask {
 }
 .top-capsule button,
 .top-capsule select,
-.top-capsule input {
+.top-capsule input,
+.top-capsule .alert-area {
     -webkit-app-region: no-drag;
 }
 
