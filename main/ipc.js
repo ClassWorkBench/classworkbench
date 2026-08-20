@@ -31,7 +31,36 @@ function setupIpc({
 }) {
 
     // ===== 数据读写 =====
-    ipcMain.handle('data:load', () => archive.loadDataInternal());
+    // 私有字段（渲染层不应持有明文）掩码。渲染层看到的 settings.qweatherPrivateKey
+    // 只可能是该掩码（表示"已配置"），绝不返回明文；写入时用该掩码代表"保持原值"。
+    const PRIVATE_KEY_MASK = '*configured*';
+
+    /** data:load 后处理：把敏感私有字段从返回值中剥离为掩码，渲染层只认"已配置与否" */
+    function sanitizeForRenderer(data) {
+        if (!data || typeof data !== 'object' || !data.settings || typeof data.settings !== 'object') return data;
+        const s = Object.assign({}, data.settings);
+        if (s.qweatherPrivateKey) {
+            s.qweatherPrivateKey = PRIVATE_KEY_MASK;
+        }
+        return Object.assign({}, data, { settings: s });
+    }
+
+    /** data:save 时恢复隐私字段：掩码 → 保留主进程现有值；新值（明文）→ 采用 */
+    function mergePrivateKeyOnSave(settings) {
+        const key = 'qweatherPrivateKey';
+        const current = (store.get('settings') || {})[key];
+        if (settings && typeof settings === 'object' && key in settings) {
+            if (settings[key] === PRIVATE_KEY_MASK || !settings[key]) {
+                // 掩码 或 空 → 保持主进程现有值（用户未改私钥）
+                if (current) settings[key] = current;
+                else delete settings[key];
+            }
+            // 否则是用户新填写的明文，直接采用
+        }
+        return settings;
+    }
+
+    ipcMain.handle('data:load', () => sanitizeForRenderer(archive.loadDataInternal()));
 
     ipcMain.handle('data:save', async (_event, data) => {
         if (!archive.validateData(data)) {
@@ -41,7 +70,7 @@ function setupIpc({
         const { homeworks, subjects, settings } = data;
         store.set('homeworks', homeworks || []);
         if (subjects !== undefined) store.set('subjects', subjects);
-        if (settings !== undefined) store.set('settings', settings);
+        if (settings !== undefined) store.set('settings', mergePrivateKeyOnSave(settings));
         await store.flush();   // 加密落盘（串行队列）
         return { success: true };
     });
@@ -50,7 +79,21 @@ function setupIpc({
     ipcMain.handle('app:cipherStatus', () => cipher.status());
 
     // ===== 备份/恢复（备份文件读写；业务组装在渲染层 backup.js） =====
-    ipcMain.handle('data:exportBackup', (_event, args) => backup.exportBackup(args || {}));
+    ipcMain.handle('data:exportBackup', (_event, args) => {
+        const a = args || {};
+        // 备份是完整可恢复的持久化产物：渲染层 payload 里 qweatherPrivateKey 是掩码，
+        // 导出前补上主进程中的真实私钥，确保跨机器/恢复时私钥不丢。
+        if (a.payload && a.payload.settings && typeof a.payload.settings === 'object'
+            && a.payload.settings.qweatherPrivateKey === PRIVATE_KEY_MASK) {
+            const real = (store.get('settings') || {}).qweatherPrivateKey;
+            a = Object.assign({}, a, {
+                payload: Object.assign({}, a.payload, {
+                    settings: Object.assign({}, a.payload.settings, { qweatherPrivateKey: real })
+                })
+            });
+        }
+        return backup.exportBackup(a);
+    });
     ipcMain.handle('data:importBackup', () => backup.importBackup());
     ipcMain.handle('data:createSnapshot', (_event, data) => backup.createSnapshot(data));
     ipcMain.handle('data:getArchives', () => backup.collectArchives());
