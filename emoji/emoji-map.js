@@ -10,6 +10,7 @@ window.EMOJI_FILES = {
   "☁": "cloud_color.svg",
   "⛈": "cloud_with_lightning_and_rain_color.svg",
   "🌧": "cloud_with_rain_color.svg",
+  "☔️": "light_rain_color.svg",
   "🌨": "cloud_with_snow_color.svg",
   "🌙": "crescent_moon_color.svg",
   "⏏": "eject_button_color.svg",

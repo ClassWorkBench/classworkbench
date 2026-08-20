@@ -61,6 +61,7 @@
     -webkit-backdrop-filter: blur(6px) saturate(1.15);
     white-space: nowrap;
     flex-shrink: 0;
+    min-height: 31px;              /* 固定胶囊高度基准，天气/预警胶囊保持一致 */
     cursor: default;
     transition: background 0.3s;
 }
@@ -101,6 +102,7 @@
     -webkit-backdrop-filter: blur(6px) saturate(1.15);
     white-space: nowrap;
     flex-shrink: 0;
+    min-height: 31px;              /* 与 .weather-area 同一高度基准 */
     cursor: pointer;
     transition: transform 0.2s var(--transition-spring), filter 0.2s, background 0.3s;
     animation: alertSlideIn 0.35s var(--transition-spring);
