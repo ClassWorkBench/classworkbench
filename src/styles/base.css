@@ -9,7 +9,9 @@
     --radius-card: 24px;
     --radius-btn: 30px;
     --transition-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+    --transition-soft-spring: cubic-bezier(0.34, 1.15, 0.64, 1);
     --transition-smooth: cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-push: cubic-bezier(0.22, 1, 0.36, 1);
     --bg-body: #fafaf7;
     --text-primary: #1a1a1a;
     --text-secondary: #333333;
@@ -48,6 +50,21 @@
     --card-padding: 20px 20px 16px;
     --mask-opacity: 0.15;
     --scrollbar-thumb: #a8a8b0;
+}
+
+/* 日期切换的双屏滑切：旧屏快照层（绝对定位叠在新屏上方，平移动画后即被移除） */
+.card-slide-layer {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    z-index: 2;
+    will-change: transform;
+}
+/* 滑动期间锁住网格高度、防止两屏横移产生横向滚动条 */
+.cards-grid.card-slide-on {
+    position: relative;
+    overflow: hidden;
 }
 
 /* 全局重置 */

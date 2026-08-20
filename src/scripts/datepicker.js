@@ -49,7 +49,7 @@
         }
 
         state.currentViewDate = newDateStr;
-        Renderer.renderAllWithAnimation();
+        Renderer.renderAllWithSlide(delta);
         updateArrowState();
     }
 

@@ -23,3 +23,6 @@ Thumbs.db
 .idea/
 # GitHub Pages 部署工作区（独立仓库 classworkbench-site，不进主仓库）
 .pages-dist/
+
+# 冒烟/压测脚本的运行时结果产物（脚本本身上库）
+.smoke/result*.txt

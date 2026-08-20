@@ -422,7 +422,7 @@
             void cardsGrid.offsetWidth;
             // Last：启用过渡，清除 transform，平滑滑到新位置
             flipCards.forEach(({ el }) => {
-                el.style.transition = 'transform 0.42s var(--transition-smooth), box-shadow 0.4s var(--transition-smooth)';
+                el.style.transition = 'transform 0.42s var(--transition-soft-spring), box-shadow 0.4s var(--transition-smooth)';
                 el.style.transform = '';
             });
             // 过渡结束后清理 inline 样式，恢复 hover 等正常行为
@@ -441,6 +441,133 @@
             cardsGrid.addEventListener('transitionend', onTransEnd);
             // 兜底：超时后强制清理，避免 transitionend 漏触发导致 inline 样式残留
             setTimeout(cleanup, 520);
+        },
+
+        // 日期切换滑切转场：双「屏」并排平推（新屏从目标侧滑入、旧屏反向滑出）
+        // dir > 0 切未来(+1 天) → 新屏从右滑入；dir < 0 切过去 → 新屏从左滑入
+        // 每屏是独立层并继承网格的多列布局（columns），整层用「整屏宽度」像素级平移，
+        // 保证卡片保持原分列排布整体滑切，而不是逐张卡片平移导致错乱。
+        renderAllWithSlide(dir) {
+            const grid = state.dom.cardsGrid();
+            if (!grid) { this.renderAll(); return; }
+            // 若上一轮转场未结束，先干净复位再开始（避免动画叠加）
+            this._endSlide();
+            // 本轮唯一序号：防止上一轮的「迟到收尾」回调错清本轮刚设置的状态（并发/交错切换的串扰）
+            const seq = (this._slideSeq = (this._slideSeq || 0) + 1);
+
+            const dirX = dir > 0 ? 1 : -1;
+            // 继承网格的多列布局与列距，让新旧「屏」内卡片保持与原布局一致的分列
+            const cs = getComputedStyle(grid);
+            const cols = cs.columnCount;
+            const gap = cs.columnGap;
+
+            // 0) 先量旧屏真实内容高度（此时卡片仍在网格流式里），用于锁高与复位
+            const oldH = grid.scrollHeight;
+
+            // 1) 把现有卡片全部移入绝对定位的「旧屏」层（带上多列布局）
+            const oldLayer = document.createElement('div');
+            oldLayer.className = 'card-slide-layer';
+            oldLayer.style.columnCount = cols;
+            oldLayer.style.columnGap = gap;
+            grid.querySelectorAll(':scope > *').forEach((c) => oldLayer.appendChild(c));
+            grid.appendChild(oldLayer);
+
+            // 2) 进入滑切状态（横向裁剪防两屏横移产生横向滚动条；高度暂不设，见 step 4.5）
+            grid.classList.add('card-slide-on');
+
+            // 3) 渲染新卡片（跳过入场动画，避免与位移过渡冲突）
+            const prevPrev = prevCardIds;
+            prevCardIds = 'skip';
+            this.renderCards();
+            this.renderBottomPills();
+            this.updateDateDisplay();
+            this.updateClock();
+            prevCardIds = prevPrev;
+
+            // 4) 把新卡片移入绝对定位的「新屏」层（同样带上多列布局），叠在旧屏之上
+            const newLayer = document.createElement('div');
+            newLayer.className = 'card-slide-layer';
+            newLayer.style.columnCount = cols;
+            newLayer.style.columnGap = gap;
+            grid.querySelectorAll(':scope > :not(.card-slide-layer)').forEach((c) => newLayer.appendChild(c));
+            grid.appendChild(newLayer);
+
+            this._slideLayer = oldLayer;
+            this._slideNewLayer = newLayer;
+            this._slideGrid = grid;
+
+            // 4.5) 锁定高度取两屏最大值：保证新屏内容从动画一开始就完整显示，
+            // 不会被压缩成旧屏高度再弹开（避免“先按少的显示、再扩大”的割裂感）
+            const newH = newLayer.scrollHeight;
+            grid.style.height = Math.max(oldH, newH) + 'px';
+
+            // 整屏宽度作为位移量：保证「屏」作为一个整体完全移出/移入可视区域
+            const pix = grid.clientWidth;
+
+            // 5) 新屏初始先整体停在目标侧的一个整屏宽处（不触发过渡）
+            newLayer.style.transition = 'none';
+            newLayer.style.transform = `translateX(${dirX * pix}px)`;
+
+            // 6) 播放：新屏滑回原位、旧屏反向滑出
+            requestAnimationFrame(() => requestAnimationFrame(() => {
+                const TRANS = `transform 0.5s var(--transition-push)`;
+                newLayer.style.transition = TRANS;
+                newLayer.style.transform = 'translateX(0)';
+                oldLayer.style.transition = TRANS;
+                oldLayer.style.transform = `translateX(${-dirX * pix}px)`;
+
+                // 7) 滑动结束后：外层高度从「两屏最大值」过渡回新屏实际高度，再整体复位
+                this._slideTimer = setTimeout(() => {
+                    this._slideTimer = null;
+                    // 若在本轮播放期间又被新一轮切换打断（seq 已前进），则本轮的收尾交棒给新轮，
+                    // 不再触碰 grid，避免串扰
+                    if (this._slideSeq !== seq) return;
+
+                    grid.style.transition = 'height 0.32s var(--transition-smooth)';
+                    grid.style.height = newH + 'px';
+
+                    const settle = () => {
+                        if (this._slideSeq !== seq) return;   // 已被新轮接管，忽略旧收尾
+                        this._finishSlide();
+                    };
+                    grid.addEventListener('transitionend', function onHeight(ev) {
+                        if (ev.target !== grid || ev.propertyName !== 'height') return;
+                        grid.removeEventListener('transitionend', onHeight);
+                        settle();
+                    });
+                    // 兜底：即使高度未变化也复位，避免 inline 样式残留
+                    setTimeout(settle, 420);
+                    // 安全网：极端繁忙下若上述收尾定时器被吞噬，1.5s 后仍兜底清干净
+                    setTimeout(() => { if (this._slideSeq === seq) this._endSlide(); }, 1500);
+                }, 520);
+            }));
+        },
+
+        // 复位滑切转场产生的临时样式与快照层（幂等，可随时调用）
+        _endSlide() {
+            if (this._slideTimer) { clearTimeout(this._slideTimer); this._slideTimer = null; }
+            const grid = this._slideGrid;
+            if (grid) {
+                grid.classList.remove('card-slide-on');
+                grid.style.height = '';
+                grid.style.transition = '';
+                // 旧屏整层直接移除（旧卡片已被新屏替换丢弃）
+                if (this._slideLayer && this._slideLayer.parentNode === grid) this._slideLayer.remove();
+                // 新屏：把卡片迁回网格流式布局后再移除空层，保证后续增删改都基于 grid 正常结构
+                const nl = this._slideNewLayer;
+                if (nl && nl.parentNode === grid) {
+                    const cards = Array.prototype.slice.call(nl.children);
+                    cards.forEach((c) => grid.appendChild(c));
+                    nl.remove();
+                }
+                this._slideLayer = null;
+                this._slideNewLayer = null;
+                this._slideGrid = null;
+            }
+        },
+        _finishSlide() {
+            this._endSlide();
+            setTimeout(adjustContentPadding, 50);
         }
     };
 
