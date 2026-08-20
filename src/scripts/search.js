@@ -24,7 +24,6 @@
     let currentKw = '';        // 当前关键词（小写）
     let currentTerms = [];     // 当前关键词按空白拆分后的词项
     let debounceTimer = null;
-    let filtersResizeTimer = null;
 
     // DOM 引用
     let root = null;     // .sm-root
@@ -142,7 +141,7 @@
         if (matched.length === 0) {
             const empty = document.createElement('div');
             empty.className = 'sm-empty';
-            empty.textContent = incArchive ? '未找到匹配的作业' : '没有匹配的作业（可展开筛选看归档）';
+            empty.textContent = incArchive ? '未找到匹配的作业' : '没有匹配的作业（点 ⋮ 筛选可看归档）';
             listEl.appendChild(empty);
         } else {
             const frag = document.createDocumentFragment();
@@ -204,13 +203,12 @@
         currentTerms = parseTerms(currentKw);
         buildList();
         syncSize();
+        updateMoreState();
     }
 
     // ---- 尺寸动画：无结果时小，有结果时丝滑撑大 ----
-    // 注意：反复点击筛选时，sm-filters 的 max-height 正处在 0.35s 过渡动画中，
-    // 若直接量 root.offsetHeight，会量到「半展开」的中间态并叠加 overflow:hidden 裁切，
-    // 导致基准一次次测小、把面板越缩越小。因此测量前先把 max-height 强制钉到
-    // 目标终值（展开类存在→none，否则→0px），同一帧内还原则用户看不到中间态。
+    // 筛选浮层（.sm-filter-pop）用 fixed 定位，不参与文档流、不占 root 高度，
+    // 因此测量基准不再受筛选展开/收起影响，可直接量 root。
     function syncSize() {
         if (!microActive || !root || !listEl || !panel) return;
         panel.style.overflow = 'hidden';
@@ -221,14 +219,8 @@
         const savedPanelH = panel.style.height;
         panel.style.height = 'auto';
 
-        // 钉住 filters 到确定性终值再测量
-        const filters = elFilters;
-        const savedMaxH = filters ? filters.style.maxHeight : null;
-        if (filters) filters.style.maxHeight = filters.classList.contains('open') ? 'none' : '0px';
-
         const base = root.offsetHeight;          // 不含结果区的高度
 
-        if (filters) filters.style.maxHeight = savedMaxH; // 还原，交还过渡动画
         panel.style.height = savedPanelH;         // 还原容器高度
         // 测量 listEl 内容高度前必须用 auto 兜底：若这里还保留上一轮撑开的
         // 大高度（如 300px），在 overflow:auto 下 scrollHeight 会被读高，
@@ -242,64 +234,147 @@
         panel.style.height = Math.min(base + lh, maxH) + 'px';
     }
 
+    // 同步「全部/学科」胶囊的选中态。只切换 class，绝不重建 DOM：
+    // 若用 innerHTML 清空重建，点击目标会被销毁，冒泡到 document 时
+    // e.target.closest('.sm-filter-pop') 会失效，导致误关菜单（历史 bug 根因）。
+    function syncSubjectActive() {
+        const wrap = elFilters && elFilters.querySelector('.sm-caps');
+        if (!wrap) return;
+        const subjects = state.subjectList || [];
+        // selectedSubjectIds 为空即视为选中「全部」；无学科时也点亮「全部」
+        const allOn = selectedSubjectIds.size === 0 || subjects.length === 0;
+        wrap.querySelectorAll('.sm-subj').forEach(b => {
+            const on = b.dataset.id === '__all__' ? allOn : selectedSubjectIds.has(b.dataset.id);
+            b.classList.toggle('active', on);
+        });
+    }
+
+    // 胶囊容器事件委托：命中胶囊才交回 toggleSubject，点击时目标不被销毁
+    function onSubjectCapsClick(e) {
+        const wrap = elFilters && elFilters.querySelector('.sm-caps');
+        if (!wrap) return;
+        const btn = e.target.closest && e.target.closest('.sm-subj');
+        if (!btn || !wrap.contains(btn)) return;
+        toggleSubject(btn.dataset.id);
+    }
+
     function renderSubjectPills() {
         if (!elFilters) return;
-        // 清空胶囊容器（保留日期/归档区，胶囊单独放）
+        // 一次性构建胶囊 DOM + 事件委托（wrap 每次随浮层 innerHTML 新建，不会重复绑定）
         const wrap = elFilters.querySelector('.sm-caps');
         if (!wrap) return;
         wrap.innerHTML = '';
         const subjects = state.subjectList || [];
-        const mk = (id, label, color, selected) => {
+        const mk = (id, label, color) => {
             const b = document.createElement('button');
             b.type = 'button';
-            b.className = 'sm-subj' + (selected ? ' active' : '');
+            b.className = 'sm-subj';
             if (color) b.style.setProperty('--subj-accent', color);
             b.textContent = label;
-            b.addEventListener('click', () => { toggleSubject(id); });
+            b.dataset.id = String(id);
             return b;
         };
-        wrap.appendChild(mk('__all__', '全部', null, subjects.length > 0 && selectedSubjectIds.size === 0));
-        for (const s of subjects) wrap.appendChild(mk(s.id, s.name, s.color, selectedSubjectIds.has(s.id)));
+        wrap.appendChild(mk('__all__', '全部', null));
+        for (const s of subjects) wrap.appendChild(mk(s.id, s.name, s.color));
+        wrap.addEventListener('click', onSubjectCapsClick);
+        syncSubjectActive();
     }
 
     function toggleSubject(id) {
         if (id === '__all__') selectedSubjectIds = new Set();
         else if (selectedSubjectIds.has(id)) selectedSubjectIds.delete(id);
         else selectedSubjectIds.add(id);
-        renderSubjectPills();
+        syncSubjectActive();   // 仅更新选中态，不重建胶囊
         buildList();
         syncSize();
+        updateMoreState();
     }
 
     async function onArchiveToggle() {
         if (elArchive.checked && !archiveCache) {
             listEl.innerHTML = '<div class="sm-empty">正在加载归档作业…</div>';
             syncSize();
-            try { await getArchiveHomeworks(); } finally { buildList(); syncSize(); }
+            try { await getArchiveHomeworks(); } finally { buildList(); syncSize(); updateMoreState(); }
         } else {
             buildList();
             syncSize();
+            updateMoreState();
         }
     }
 
-    // ---- 折叠筛选 ----
-    function setupFilterToggle() {
-        // 注意：筛选按钮在 .sm-filters 的兄弟层（.sm-root 直接子级），
-        // 从 elFilters 内 querySelector 会取不到，必须从 root 查找。
-        const toggleBtn = root && root.querySelector('.sm-filter-toggle');
-        if (!toggleBtn) return;
-        toggleBtn.addEventListener('click', () => {
-            const filters = elFilters;
-            if (!filters) return;
-            const open = filters.classList.toggle('open');
-            toggleBtn.classList.toggle('open', open);   // 驱动 chevron 旋转
-            toggleBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
-            syncSize();
-            // 展开/收起是 0.35s 的 max-height 过渡，初始测量定格过早会裁切面板；
-            // 待过渡结束后再补测一次，避免筛选区被 overflow:hidden 剪掉。
-            clearTimeout(filtersResizeTimer);
-            filtersResizeTimer = setTimeout(() => { if (microActive) syncSize(); }, 360);
+    // ---- 筛选浮层（溢出菜单弹窗）----
+    function hasActiveFilter() {
+        return selectedSubjectIds.size > 0 ||
+            !!(elFrom && elFrom.value) ||
+            !!(elTo && elTo.value) ||
+            !!(elArchive && elArchive.checked);
+    }
+
+    // 有任一筛选生效时，让 ⋮ 按钮变主题色，作为「筛选已开启」的可见标记
+    function updateMoreState() {
+        const more = root && root.querySelector('.sm-more');
+        if (!more) return;
+        more.classList.toggle('active', hasActiveFilter());
+    }
+
+    function openPop() {
+        const more = root && root.querySelector('.sm-more');
+        const box = root && root.querySelector('.sm-box');
+        if (!elFilters || !more || !box) return;
+        // 定位前先隐藏测量尺寸，避免闪现
+        elFilters.style.visibility = 'hidden';
+        const pw = elFilters.offsetWidth;
+        const ph = elFilters.offsetHeight;
+        const r = box.getBoundingClientRect();
+        const gap = 10, pad = 8;
+        const top = r.top - ph - gap;
+        const down = top < pad;   // 上方放不下就翻到搜索框下方
+        let left = r.right - pw;
+        left = Math.max(pad, Math.min(left, window.innerWidth - pw - pad));
+        elFilters.style.top = (down ? r.bottom + gap : top) + 'px';
+        elFilters.style.left = left + 'px';
+        elFilters.style.transformOrigin = (down ? 'top right' : 'bottom right');
+        elFilters.style.visibility = '';
+        const moreBtn = more;
+        moreBtn.setAttribute('aria-expanded', 'true');
+        requestAnimationFrame(() => { elFilters.classList.add('open'); });
+    }
+
+    function closePop() {
+        if (!elFilters) return;
+        elFilters.classList.remove('open');
+        const moreBtn = root && root.querySelector('.sm-more');
+        if (moreBtn) moreBtn.setAttribute('aria-expanded', 'false');
+    }
+
+    function togglePop() {
+        if (elFilters && elFilters.classList.contains('open')) closePop();
+        else openPop();
+    }
+
+    // 点击微窗外部区域时收起浮层（浮层现在挂 body，故须同时排除它自身）。
+    // 仅当焦点位于「原生日期选择器」输入框且该输入框在浮层内时，才视为内部
+    // （原生日历弹出后点选的 click 目标不在文档树里，只能靠焦点兜底）。
+    // 若笼统地把「焦点在浮层内」都算内部，点击普通开关后焦点残留，
+    // 会导致浮层再也无法通过外部点击收起。
+    function onDocDown(e) {
+        if (!microActive || !elFilters || !elFilters.classList.contains('open')) return;
+        const t = e.target;
+        if (t.closest && (t.closest('.sm-root') || t.closest('.sm-filter-pop'))) return;
+        const ae = document.activeElement;
+        if (ae &&
+            ae.classList && ae.classList.contains('sm-date-input') &&
+            ae.closest && ae.closest('.sm-filter-pop')) return;
+        closePop();
+    }
+
+    function setupFilterPopup() {
+        const moreBtn = root && root.querySelector('.sm-more');
+        if (moreBtn) moreBtn.addEventListener('click', (e) => {
+            e.stopImmediatePropagation();
+            togglePop();
         });
+        document.addEventListener('mousedown', onDocDown, true);
     }
 
     // ---- 打开微窗（更多菜单内原地变形，与 restore 镜像）----
@@ -337,14 +412,13 @@
             root.style.opacity = '0';
             root.style.transition = 'opacity 0.25s var(--transition-smooth)';
 
-            // 渲染筛选胶囊与事件
-            elFilters = root.querySelector('.sm-filters');
+            // 渲染筛选胶囊与事件（elFilters 已在 buildMicroHtml 中赋值并挂到 body）
             elKw = root.querySelector('.sm-input');
             listEl = root.querySelector('.sm-list');
             elSummary = root.querySelector('.sm-summary');
             // elFrom / elTo / elArchive 在 buildMicroHtml 里已缓存 DOM 引用
             renderSubjectPills();
-            setupFilterToggle();
+            setupFilterPopup();
 
             const box = root.querySelector('.sm-box');
 
@@ -364,6 +438,7 @@
                 panel.style.width = '';        // 交还 .more-sheet-search 的 400px，触发 w0→400
                 root.style.opacity = '1';      // 淡入搜索内容
                 if (box) box.classList.remove('sm-drop'); // 搜索盒「从天而降」
+                updateMoreState();             // 初始化 ⋮ 高亮态（无筛选时不亮）
             }));
 
             requestAnimationFrame(() => { if (elKw) elKw.focus(); });
@@ -373,7 +448,8 @@
     function escHandler(e) {
         if (e.key === 'Escape' && microActive) {
             e.stopImmediatePropagation();
-            restore();
+            if (elFilters && elFilters.classList.contains('open')) closePop();
+            else restore();
         }
     }
 
@@ -391,12 +467,18 @@
                 <span class="sm-summary"></span>
             </div>
 
-            <button type="button" class="sm-filter-toggle" aria-expanded="false">
-                <span>筛选条件</span>
-                <span class="sm-chevron"></span>
-            </button>
+            <div class="sm-list"></div>
 
-            <div class="sm-filters">
+            <div class="sm-box sm-drop">
+                <img class="sm-box-icon" src="emoji/magnifying_glass_color.svg" alt="">
+                <input type="text" class="sm-input" placeholder="搜索作业内容…" autocomplete="off">
+                <button type="button" class="sm-more" aria-label="筛选" aria-haspopup="true" aria-expanded="false">
+                    <span class="sm-more-dots"><i></i><i></i><i></i></span>
+                </button>
+            </div>
+
+            <div class="sm-filter-pop" role="dialog" aria-label="筛选">
+                <div class="sm-pop-cap">筛选</div>
                 <div class="sm-caps"></div>
                 <div class="sm-dates">
                     ${dateInput('smFrom', '从')}
@@ -409,19 +491,18 @@
                     <span class="sm-switch"></span>
                 </label>
             </div>
-
-            <div class="sm-list"></div>
-
-            <div class="sm-box sm-drop">
-                <img class="sm-box-icon" src="emoji/magnifying_glass_color.svg" alt="">
-                <input type="text" class="sm-input" placeholder="搜索作业内容…" autocomplete="off">
-            </div>
         `;
 
         // 缓存日期/归档 DOM 引用
         elFrom = root.querySelector('#smFrom');
         elTo = root.querySelector('#smTo');
         elArchive = root.querySelector('#smArchive');
+
+        // 浮层必须挂到 document.body：菜单面板 .more-sheet-panel 带 transform，
+        // 会让 position:fixed 的子元素退化为「相对面板定位」，按视口坐标对齐会错位。
+        if (elFilters && elFilters.parentNode === document.body) elFilters.remove();
+        elFilters = root.querySelector('.sm-filter-pop');
+        if (elFilters) document.body.appendChild(elFilters);
 
         panel.innerHTML = '';
         panel.appendChild(root);
@@ -441,8 +522,8 @@
         if (!microActive) return;
         microActive = false;
         clearTimeout(debounceTimer);
-        clearTimeout(filtersResizeTimer);
         document.removeEventListener('keydown', escHandler, true);
+        document.removeEventListener('mousedown', onDocDown, true);
 
         const curH = panel.offsetHeight;
         const curW = panel.offsetWidth;
@@ -457,6 +538,8 @@
             // 切回菜单内容，同时面板尺寸保持搜索态，容器不会瞬间坍缩
             panel.innerHTML = savedMenuHtml;
             panel.classList.remove('more-sheet-search');
+            // 卸载挂到 body 的筛选浮层
+            if (elFilters && elFilters.parentNode === document.body) elFilters.remove();
 
             // 测定菜单内容自然尺寸（此段为同步回流，用户看不到中间态）
             panel.style.width = 'auto';

@@ -138,7 +138,15 @@
         });
         document.addEventListener('click', (e) => {
             if (!isOpen) return;
-            if (!panel.contains(e.target) && !toggleBtn.contains(e.target)) closeMenu();
+            const inPanel = panel.contains(e.target) || toggleBtn.contains(e.target);
+            // 搜索筛选浮层挂在 body（见 search.js），须视为菜单「内部」，
+            // 否则点学科/日期/归档会误关菜单；焦点在浮层内（含原生日期选择器）同样不算外部。
+            // 注：search.js 已用事件委托，点击学科胶囊只切 class 不再销毁 DOM，
+            // 故此处 e.target.closest() 全程有效，无需 composedPath 兜底。
+            const inSearchPop = e.target && e.target.closest && !!e.target.closest('.sm-filter-pop');
+            const focusInFilter = document.activeElement &&
+                document.activeElement.closest && document.activeElement.closest('.sm-filter-pop');
+            if (!inPanel && !inSearchPop && !focusInFilter) closeMenu();
         });
         window.addEventListener('resize', () => {
             if (isOpen) positionPanel();
