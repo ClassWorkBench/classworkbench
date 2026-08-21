@@ -21,6 +21,7 @@
 function createBackupModule({ app, dialog, fs, path, log, store, archive, cipher, isEncryptionEnabled }) {
 
     const ARCHIVE_MONTH_RE = /^\d{4}-\d{2}$/;
+    const SNAPSHOT_MAX_KEEP = 5;   // 恢复快照只保留最近 N 份，防止磁盘无限增长
     const encGetter = typeof isEncryptionEnabled === 'function'
         ? isEncryptionEnabled
         : () => true;
@@ -28,6 +29,28 @@ function createBackupModule({ app, dialog, fs, path, log, store, archive, cipher
     function getSnapshotDir() {
         return path.join(app.getPath('userData'), 'restore-snapshots');
     }
+
+    /** 清理过期恢复快照：只保留最近 SNAPSHOT_MAX_KEEP 份，失败静默不阻断主流程 */
+    function cleanupSnapshots() {
+        try {
+            const dir = getSnapshotDir();
+            if (!fs.existsSync(dir)) return;
+            // 文件名时间戳为固定宽度 YYYYMMDDTHHMMSS，字典序即时间序，倒序后最新在前
+            const names = fs.readdirSync(dir)
+                .filter(n => /^restore-\d{8}T\d{6}\.json$/.test(n))
+                .sort().reverse();
+            for (const name of names.slice(SNAPSHOT_MAX_KEEP)) {
+                try { fs.unlinkSync(path.join(dir, name)); } catch (e) {
+                    log.warn('[backup] 删除过期快照失败:', name, e.message || e);
+                }
+            }
+        } catch (e) {
+            log.warn('[backup] 清理过期快照失败:', e.message || e);
+        }
+    }
+
+    // 启动即清理一次，兼顾历史上已堆积的旧快照
+    cleanupSnapshots();
 
     /** 原子写 JSON：临时文件 + rename，防止写入中断损坏 */
     function safeWriteJson(filePath, payload) {
@@ -113,6 +136,7 @@ function createBackupModule({ app, dialog, fs, path, log, store, archive, cipher
                 }
             };
             writeEncryptedJson(filePath, snapshot);
+            cleanupSnapshots();   // 每次新建快照后收紧保留数量
             return { success: true, filePath };
         } catch (e) {
             log.error('[backup] 自动快照失败:', e);
