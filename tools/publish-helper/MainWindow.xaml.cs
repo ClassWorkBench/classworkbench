@@ -279,10 +279,26 @@ public partial class MainWindow : Window
             }
             Log(ReleaseLog, $"✓ 构建{(online ? "并发布到 GitHub" : "")}完成", "#9FE8B5");
 
-            // ③ 提交并推送版本号改动（仅在线发布时）
+            // ③ 写入发布说明（GitHub Release body → 应用内"本次更新"更新日志）
             if (online)
             {
-                Log(ReleaseLog, "③ 提交并推送版本号改动到主仓库", "#9FE8B5");
+                var notes = ReleaseNotesBox.Text.Trim();
+                if (!string.IsNullOrEmpty(notes))
+                {
+                    Log(ReleaseLog, "③ 写入发布说明到 GitHub Release", "#9FE8B5");
+                    var notesPath = Path.Combine(Path.GetTempPath(), $"cwb-notes-{newVer}.md");
+                    File.WriteAllText(notesPath, notes, new UTF8Encoding(false));
+                    var n = await RunCmdAsync("gh", $"release edit v{newVer} --notes-file \"{notesPath}\"", _rootDir,
+                        s => Log(ReleaseLog, s), s => Log(ReleaseLog, s, "#FF8A8A"));
+                    if (n != 0) Log(ReleaseLog, "⚠ 发布说明写入失败（请确认已安装并登录 gh CLI）", "#FFB24D");
+                    else Log(ReleaseLog, "✓ 发布说明已写入（应用内即可看到）", "#9FE8B5");
+                }
+            }
+
+            // ④ 提交并推送版本号改动（仅在线发布时）
+            if (online)
+            {
+                Log(ReleaseLog, "④ 提交并推送版本号改动到主仓库", "#9FE8B5");
                 await RunCmdAsync("git", "add package.json", _rootDir, s => Log(ReleaseLog, s), s => Log(ReleaseLog, s, "#FF8A8A"));
                 var c = await RunCmdAsync("git", $"commit -m \"chore(release): v{newVer}\"", _rootDir,
                     s => Log(ReleaseLog, s), s => Log(ReleaseLog, s, "#FF8A8A"));
@@ -291,8 +307,8 @@ public partial class MainWindow : Window
                 if (p != 0) Log(ReleaseLog, "⚠ 代码推送失败，请稍后手动 git push", "#FFB24D");
                 else Log(ReleaseLog, "✓ 版本号已提交并推送", "#9FE8B5");
 
-                // ④ 同步官网下载链接（index.html / manual.html → 最新版本）
-                Log(ReleaseLog, "④ 更新官网下载链接 → v" + newVer, "#9FE8B5");
+                // ⑤ 同步官网下载链接（index.html / manual.html → 最新版本）
+                Log(ReleaseLog, "⑤ 更新官网下载链接 → v" + newVer, "#9FE8B5");
                 await UpdateSiteDownloadLinks(newVer, ReleaseLog);
             }
 

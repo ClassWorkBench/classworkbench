@@ -83,7 +83,7 @@
             case 'welcome':
                 return `
                     <div class="wizard-welcome">
-                        <div class="wizard-welcome-icon" aria-hidden="true">${emoji('🏫')}</div>
+                        <div class="wizard-welcome-icon" aria-hidden="true">${emoji('📖')}</div>
                         <h2>欢迎使用班级工作台</h2>
                         <div class="wizard-welcome-char-box" id="wizardCharBox"></div>
                         <p class="wizard-welcome-sub">为班级大屏打造的作业展示工具</p>

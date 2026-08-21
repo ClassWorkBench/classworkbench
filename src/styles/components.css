@@ -1851,6 +1851,44 @@ body.reduce-anim .segmented .seg-btn {
     color: var(--accent);
 }
 
+/* 关于面板：本次更新（更新日志，来自 GitHub Release 说明） */
+.about-updates {
+    margin-top: 14px;
+    border: 1px solid rgba(0, 0, 0, 0.06);
+    border-radius: 12px;
+    padding: 12px 14px 14px;
+    background: rgba(0, 0, 0, 0.015);
+}
+.about-updates-title {
+    font-size: 1.05rem;
+    font-weight: 800;
+    color: var(--text-primary);
+    letter-spacing: -0.3px;
+}
+.about-updates-title .about-updates-ver {
+    font-style: normal;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--accent);
+    margin-left: 6px;
+    vertical-align: 2px;
+}
+.about-updates-list {
+    margin: 8px 0 0;
+    padding-left: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    font-size: 0.85rem;
+    line-height: 1.55;
+    color: var(--text-primary);
+}
+.about-updates-empty {
+    margin-top: 8px;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+
 /* 软件更新对话框 */
 .update-dialog-title {
     font-size: 1.05rem;

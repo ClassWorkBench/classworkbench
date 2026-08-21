@@ -187,6 +187,7 @@ function setupIpc({
     ipcMain.handle('updater:download', () => updater.download());
     ipcMain.handle('updater:install', () => updater.install());
     ipcMain.handle('updater:state', () => updater.getState());
+    ipcMain.handle('updater:release-notes', () => updater.latestNotes());
 
     // ===== 协议/文档读取（白名单文件名） =====
     // 在线缓存优先（sync 后台已拉取最新），无在线缓存时回退随应用分发的源文件。

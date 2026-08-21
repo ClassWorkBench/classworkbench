@@ -12,8 +12,9 @@ const { autoUpdater } = require('electron-updater');
  * @param {object} opts.app          - Electron app（isPackaged / getVersion）
  * @param {object} opts.log          - electron-log
  * @param {Function} opts.getMainWindow - 获取当前主窗口（事件推送目标）
+ * @param {object} opts.net          - Electron net（拉取 GitHub 最新 release 说明）
  */
-function createUpdaterModule({ app, log, getMainWindow }) {
+function createUpdaterModule({ app, log, getMainWindow, net }) {
 
     // ---- 当前更新状态（渲染层可随时经 updater:state 拉取） ----
     const state = {
@@ -21,7 +22,8 @@ function createUpdaterModule({ app, log, getMainWindow }) {
         currentVersion: app.getVersion(),
         version: null,         // 目标新版本
         percent: 0,            // 下载进度 0-100
-        error: null
+        error: null,
+        releaseNotes: ''       // 最新 release 说明（应用内"本次更新"更新日志）
     };
 
     function emit(type, payload = {}) {
@@ -42,7 +44,8 @@ function createUpdaterModule({ app, log, getMainWindow }) {
             state.status = 'available';
             state.version = info.version;
             state.error = null;
-            emit('available', { version: info.version });
+            state.releaseNotes = (info && info.releaseNotes) || '';
+            emit('available', { version: info.version, releaseNotes: state.releaseNotes });
         });
         autoUpdater.on('update-not-available', (info) => {
             state.status = 'not-available';
@@ -71,6 +74,28 @@ function createUpdaterModule({ app, log, getMainWindow }) {
 
     function isDev() {
         return !app.isPackaged;
+    }
+
+    /** 拉取 GitHub 最新 release 说明（更新日志），失败返回 null */
+    async function latestNotes() {
+        try {
+            const res = await net.fetch(
+                'https://api.github.com/repos/ClassWorkBench/classworkbench/releases/latest',
+                { headers: { 'Accept': 'application/vnd.github+json' } }
+            );
+            if (!res.ok) {
+                log.warn('[updater] 拉取更新日志失败 HTTP', res.status);
+                return null;
+            }
+            const data = await res.json();
+            return {
+                version: (data.tag_name || '').replace(/^v/i, ''),
+                notes: data.body || ''
+            };
+        } catch (e) {
+            log.error('[updater] 拉取更新日志失败:', e);
+            return null;
+        }
     }
 
     /** 检查更新（启动静默 / 手动触发共用）。后续状态靠 updater:event 推送。 */
@@ -109,7 +134,7 @@ function createUpdaterModule({ app, log, getMainWindow }) {
         return { success: true };
     }
 
-    return { setup, check, download, install, getState: () => ({ ...state }), isDev };
+    return { setup, check, download, install, latestNotes, getState: () => ({ ...state }), isDev };
 }
 
 module.exports = { createUpdaterModule };

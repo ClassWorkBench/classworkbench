@@ -93,6 +93,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
         install: () => ipcRenderer.invoke('updater:install'),
         // 拉取当前更新状态快照（status/version/percent/error）
         getState: () => ipcRenderer.invoke('updater:state'),
+        // 拉取 GitHub 最新 release 说明（更新日志）
+        releaseNotes: () => ipcRenderer.invoke('updater:release-notes'),
         // 订阅更新事件：{ type: checking|available|progress|downloaded|not-available|error, ... }
         onEvent: (cb) => {
             const h = (_e, data) => cb(data);

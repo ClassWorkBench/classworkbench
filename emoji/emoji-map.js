@@ -5,6 +5,7 @@ window.EMOJI_FILES = {
   "⏰": "alarm_clock_color.svg",
   "🎨": "artist_palette_color.svg",
   "📚": "books_color.svg",
+  "📖": "open_book_color.svg",
   "📅": "calendar_color.svg",
   "🗃": "card_file_box_color.svg",
   "✅": "check_mark_button_color.svg",

@@ -196,7 +196,7 @@ if (!gotTheLock) {
 
         // 自动更新（electron-updater + GitHub Releases）：启动静默检查一次，交互由用户确认
         updater = createUpdaterModule({
-            app, log,
+            app, log, net,
             getMainWindow: () => mainWindowRef.value
         });
         updater.setup();
