@@ -1752,6 +1752,9 @@ body.reduce-anim .segmented .seg-btn {
     font-weight: 600;
 }
 /* 大厂风格：横排小蓝字链接，可点击，hover 变浅蓝+下划线 */
+.panel-body > .setting-group > .about-doc-links {
+    margin-top: 12px;
+}
 .about-doc-links {
     display: flex;
     flex-wrap: wrap;
