@@ -25,6 +25,14 @@
 - **数据加密**：AES-256-GCM + Windows DPAPI（`main/data-cipher.js`）
 - **图标**：IconPark（Apache-2.0）+ Fluent UI Emoji（MIT）
 
+## 命名约定
+
+| 场合 | 写法 | 示例 |
+|---|---|---|
+| 包名 / 仓库 / appId / 目录 | `classworkbench`（全小写） | `com.classworkbench.app` |
+| 产品名 / 主程序 / 安装包 | `ClassWorkBench`（PascalCase） | `ClassWorkBench.exe`、`classworkbench-setup-1.0.3.exe` |
+| 界面显示 / 中文品牌 | 班级工作台 | 窗口标题、托盘、向导 |
+
 ## 构建
 
 ### 环境要求

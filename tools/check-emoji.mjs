@@ -8,7 +8,7 @@
  *   3. 直接以 src="emoji/xxx.svg" 引用的文件必须存在
  *   4. 提示 emoji/ 下未被任何地方引用的 SVG（疑似可清理）
  *
- * 用法：node scripts/check-emoji.mjs    （或 npm run check:emoji）
+ * 用法：node tools/check-emoji.mjs    （或 npm run check:emoji）
  * 退出码：0 通过 / 1 存在缺失或未映射等硬错误
  */
 import { readFileSync, readdirSync, statSync } from 'node:fs';

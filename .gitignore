@@ -30,6 +30,7 @@ Thumbs.db
 
 # 冒烟/压测脚本的运行时结果产物（脚本本身上库）
 .smoke/result*.txt
+.smoke/backup-*/
 
 # Python 推送工具缓存
 __pycache__/

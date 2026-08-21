@@ -17,7 +17,7 @@ namespace PublishHelper;
 /// </summary>
 public partial class MainWindow : Window
 {
-    // 与 scripts/publish-docs.mjs 保持一致
+    // 协议文档清单（与官网 docs/ 同步保持一致）
     private static readonly string[] DocFiles =
         { "AGREEMENT.md", "PRIVACY.md", "SECURITY.md", "OPENSOURCE.md", "CONTACT.md" };
 

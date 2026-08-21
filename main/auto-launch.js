@@ -20,7 +20,7 @@ function createAutoLaunchModule({ app, fs, path, execFileSync, log }) {
     /** 自启目标路径：打包版用 process.execPath；开发版优先已打包 exe，没有就继续用 electron.exe */
     function getPreferredAutoLaunchPath() {
         if (app.isPackaged) return process.execPath;
-        const packagedExe = path.join(__dirname, '..', 'dist', 'win-unpacked', '班级工作台.exe');
+        const packagedExe = path.join(__dirname, '..', 'dist', 'win-unpacked', 'ClassWorkBench.exe');
         return fs.existsSync(packagedExe) ? packagedExe : process.execPath;
     }
 
