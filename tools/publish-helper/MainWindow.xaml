@@ -278,6 +278,26 @@
                             </StackPanel>
                         </Button>
 
+                        <!-- 说明书 / 宣传册 -->
+                        <Border Style="{StaticResource CardStyle}" Margin="0,14,0,14">
+                            <StackPanel>
+                                <TextBlock Text="说明书 / 宣传册" FontSize="13.5" FontWeight="Bold"/>
+                                <TextBlock Text="推送网站首页 index.html 与使用手册 manual.html（promo 配图随页面一起更新）" FontSize="11"
+                                           Foreground="{StaticResource TextFaintBrush}" Margin="0,3,0,0"/>
+                                <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                                    <Ellipse x:Name="PagesDot" Width="8" Height="8" Fill="#9AA3BD" VerticalAlignment="Center"/>
+                                    <TextBlock x:Name="PagesStatusText" Text="检查中…" FontSize="11.5"
+                                               Foreground="{StaticResource TextSecondaryBrush}" Margin="7,0,0,0"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <Button x:Name="PushPagesButton" Style="{StaticResource GhostButton}" Click="PushPages_Click">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock x:Name="PushPagesButtonText" Text="推送说明书 / 宣传册" FontSize="13" FontWeight="Bold"/>
+                            </StackPanel>
+                        </Button>
+
                         <Border Background="#1F2437" CornerRadius="12" Margin="0,16,0,0" Padding="14">
                             <StackPanel>
                                 <StackPanel Orientation="Horizontal" Margin="2,0,0,8">

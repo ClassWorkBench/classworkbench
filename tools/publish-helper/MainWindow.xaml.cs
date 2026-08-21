@@ -107,6 +107,15 @@ public partial class MainWindow : Window
                 ? "网站仓库正常，可以推送"
                 : "不是 git 仓库，请点『更改』选择正确目录";
 
+            var pagesOk = File.Exists(Path.Combine(_siteDir, "index.html"))
+                && File.Exists(Path.Combine(_siteDir, "manual.html"));
+            PagesDot.Fill = new SolidColorBrush(pagesOk
+                ? (Color)ColorConverter.ConvertFromString("#3DDC84")
+                : (Color)ColorConverter.ConvertFromString("#FF5A5A"));
+            PagesStatusText.Text = pagesOk
+                ? "待推送：index.html · manual.html · promo/"
+                : "网站仓库缺少 index.html 或 manual.html";
+
             if (!allOk)
             {
                 Log(ReleaseLog, "环境自检：", "#FFB24D");
@@ -441,6 +450,70 @@ public partial class MainWindow : Window
         }
     }
 
+    // =====================================================================
+    //  推送说明书 / 宣传册（index.html + manual.html + promo/）
+    // =====================================================================
+    private async void PushPages_Click(object sender, RoutedEventArgs e)
+    {
+        if (_busy) return;
+
+        if (!Directory.Exists(_siteDir) || !Directory.Exists(Path.Combine(_siteDir, ".git")))
+        {
+            MessageBox.Show(this, $"找不到网站仓库：\n{_siteDir}", "路径不对", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+        foreach (var f in new[] { "index.html", "manual.html" })
+        {
+            if (!File.Exists(Path.Combine(_siteDir, f)))
+            {
+                MessageBox.Show(this, $"网站仓库缺少 {f}：\n{Path.Combine(_siteDir, f)}", "文件缺失",
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+        }
+
+        SetBusy(true, PushPagesButton, PushPagesButtonText, "推送中…");
+        Log(DocsLog, "────────── 开始推送说明书/宣传册 ──────────", "#6EA8FE");
+        try
+        {
+            // ① 提交并推送（promo 配图随页面一起更新）
+            Log(DocsLog, "① 提交 index.html / manual.html / promo → 网站仓库", "#9FE8B5");
+            await RunCmdAsync("git", "add index.html manual.html promo", _siteDir,
+                s => Log(DocsLog, s), s => Log(DocsLog, s, "#FF8A8A"));
+            var c = await RunCmdAsync("git", "commit -m \"docs: 更新说明书与宣传页\"", _siteDir,
+                s => Log(DocsLog, s), s => Log(DocsLog, s, "#FF8A8A"));
+            if (c != 0)
+            {
+                Log(DocsLog, "⚠ 没有可提交的改动（页面文件未变化）", "#FFB24D");
+                MessageBox.Show(this, "页面文件没有变化，无需推送。", "无改动", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            var p = await RunCmdAsync("git", "push", _siteDir,
+                s => Log(DocsLog, s), s => Log(DocsLog, s, "#FF8A8A"));
+            if (p != 0)
+            {
+                Log(DocsLog, "✗ 推送失败，请查看上方红色日志。", "#FF8A8A");
+                MessageBox.Show(this, "推送失败，请查看上方红色日志。", "推送失败", MessageBoxButton.OK, MessageBoxImage.Error);
+                return;
+            }
+
+            Log(DocsLog, "② 完成！约 1~几分钟后 GitHub Pages 生效", "#9FE8B5");
+            Log(DocsLog, "   https://classworkbench.github.io/classworkbench-site/", "#9FE8B5");
+            MessageBox.Show(this, "说明书与宣传册已推送，\n约 1~几分钟后网站生效。", "推送成功",
+                MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        catch (Exception ex)
+        {
+            Log(DocsLog, "异常：" + ex.Message, "#FF8A8A");
+            MessageBox.Show(this, "推送过程出错：" + ex.Message, "推送出错", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+        finally
+        {
+            SetBusy(false, PushPagesButton, PushPagesButtonText, "推送说明书 / 宣传册");
+        }
+    }
+
     // ---------- 通用工具 ----------
     private void SetBusy(bool busy, Button btn, TextBlock text, string label)
     {
@@ -449,6 +522,8 @@ public partial class MainWindow : Window
         text.Text = label;
         NavRelease.IsEnabled = !busy;
         NavDocs.IsEnabled = !busy;
+        if (PushDocsButton != null) PushDocsButton.IsEnabled = !busy;
+        if (PushPagesButton != null) PushPagesButton.IsEnabled = !busy;
     }
 
     private void Log(RichTextBox box, string text, string color = "#B7BED9")
