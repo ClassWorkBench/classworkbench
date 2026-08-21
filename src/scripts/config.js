@@ -11,7 +11,7 @@ const STORAGE = {
 
 // 协议版本兜底常量（与 AGREEMENT.md 头部 "**版本：vX.Y.Z**" 保持同一数值）。
 // 运行期协议版本以实际文档内容（在线同步优先）解析为准，此常量仅在文档无法解析时兜底显示。
-const AGREEMENT_VERSION = '1.0.0';
+const AGREEMENT_VERSION = '1.0.1';
 
 // 应用版本号（与 package.json version 保持一致；仅当主进程版本获取失败时兜底显示）
 const APP_VERSION = '1.0.0';
