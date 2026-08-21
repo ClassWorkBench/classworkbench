@@ -23,10 +23,11 @@ const REPO = 'classworkbench';
 const SITE_REPO = 'classworkbench-site';
 
 // 三源模板：依次作为 primary → fallback1 → fallback2
+// 注意：主仓库默认分支为 master（git ls-remote 验证），jsDelivr/raw 必须指向实际分支名
 const SOURCE_BASES = [
     `https://${OWNER}.github.io/${SITE_REPO}/docs/`,                            // GitHub Pages
-    `https://cdn.jsdelivr.net/gh/${OWNER}/${REPO}@main/`,                   // jsDelivr CDN
-    `https://raw.githubusercontent.com/${OWNER}/${REPO}/main/`              // raw 直链（权威，内地不稳）
+    `https://cdn.jsdelivr.net/gh/${OWNER}/${REPO}@master/`,                 // jsDelivr CDN
+    `https://raw.githubusercontent.com/${OWNER}/${REPO}/master/`            // raw 直链（权威，内地不稳）
 ];
 
 const PER_SOURCE_TIMEOUT = 6000;   // 单个源超时（ms），整链最多约 18s
