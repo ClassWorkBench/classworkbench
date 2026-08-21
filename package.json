@@ -11,8 +11,8 @@
   },
   "build": {
     "appId": "com.classworkbench.app",
-    "productName": "ClassWorkBench",
-    "artifactName": "classworkbench-setup-${version}.${ext}",
+    "productName": "班级工作台",
+    "executableName": "ClassWorkBench",
     "files": [
       "**/*",
       "!sidecar/**/*",

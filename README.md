@@ -30,8 +30,8 @@
 | 场合 | 写法 | 示例 |
 |---|---|---|
 | 包名 / 仓库 / appId / 目录 | `classworkbench`（全小写） | `com.classworkbench.app` |
-| 产品名 / 主程序 / 安装包 | `ClassWorkBench`（PascalCase） | `ClassWorkBench.exe`、`classworkbench-setup-1.0.3.exe` |
-| 界面显示 / 中文品牌 | 班级工作台 | 窗口标题、托盘、向导 |
+| 主程序可执行文件 | `ClassWorkBench.exe` | exe 文件名保持英文 |
+| 显示名 / 安装包 / 快捷方式 | 班级工作台 | 窗口标题、托盘、向导、安装包、桌面快捷方式、开始菜单 |
 
 ## 构建
 
