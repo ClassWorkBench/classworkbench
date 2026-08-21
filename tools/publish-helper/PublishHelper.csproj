@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <AssemblyName>PublishHelper</AssemblyName>
+    <RootNamespace>PublishHelper</RootNamespace>
+    <Version>1.0.0</Version>
+    <Company>ClassWorkBench</Company>
+    <Product>班级工作台发布助手</Product>
+  </PropertyGroup>
+
+</Project>

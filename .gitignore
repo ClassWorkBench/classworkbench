@@ -13,6 +13,10 @@ sidecar/**/publish/
 sidecar/*.exe
 qq-listener.exe
 
+# WPF 发布助手构建产物
+tools/**/bin/
+tools/**/obj/
+
 # 本地工作区（Agent 生成物，勿提交）
 .workbuddy/
 
