@@ -282,10 +282,18 @@ public partial class MainWindow : Window
             // ③ 写入发布说明（GitHub Release body → 应用内"本次更新"更新日志）
             if (online)
             {
+                // electron-builder 上传完资产后偶尔会把 release 留在草稿态，
+                // 草稿不算 latest，应用会查不到更新——这里统一转正。
+                Log(ReleaseLog, "③ 转正 GitHub Release（防止停留在草稿）", "#9FE8B5");
+                var relEdit = await RunCmdAsync("gh", $"release edit v{newVer} --draft=false", _rootDir,
+                    s => Log(ReleaseLog, s), s => Log(ReleaseLog, s, "#FF8A8A"));
+                if (relEdit != 0) Log(ReleaseLog, "⚠ Release 转正失败（请确认已安装并登录 gh CLI）", "#FFB24D");
+                else Log(ReleaseLog, "✓ Release 已发布为正式版本", "#9FE8B5");
+
                 var notes = ReleaseNotesBox.Text.Trim();
                 if (!string.IsNullOrEmpty(notes))
                 {
-                    Log(ReleaseLog, "③ 写入发布说明到 GitHub Release", "#9FE8B5");
+                    Log(ReleaseLog, "   写入发布说明到 GitHub Release", "#9FE8B5");
                     var notesPath = Path.Combine(Path.GetTempPath(), $"cwb-notes-{newVer}.md");
                     File.WriteAllText(notesPath, notes, new UTF8Encoding(false));
                     var n = await RunCmdAsync("gh", $"release edit v{newVer} --notes-file \"{notesPath}\"", _rootDir,
