@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.IO;
+using System.Net.Http;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Text.Json;
@@ -20,6 +21,11 @@ public partial class MainWindow : Window
     // 协议文档清单（与官网 docs/ 同步保持一致）
     private static readonly string[] DocFiles =
         { "AGREEMENT.md", "PRIVACY.md", "SECURITY.md", "OPENSOURCE.md", "CONTACT.md" };
+
+    // GitHub 仓库（与 main/updater.js、main/docs-sync.js 保持一致）
+    private const string GITHUB_API = "https://api.github.com";
+    private const string OWNER = "ClassWorkBench";
+    private const string REPO = "classworkbench";
 
     private string _rootDir = "";   // 主仓库根目录（含 package.json）
     private string _srcDir = "";    // 协议文件目录 = 主仓库根目录
@@ -243,12 +249,17 @@ public partial class MainWindow : Window
                 MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
+        var effectiveToken = string.IsNullOrEmpty(token) ? envToken : token;
+
+        // 发布前自检：分支 / 工作区 / 版本重复（仅在线发布）
+        if (online && !await PreflightChecks(newVer, effectiveToken!)) return;
 
         SetBusy(true, ReleaseButton, ReleaseButtonText, "发布中…");
         Log(ReleaseLog, $"────────── 开始发布 v{newVer} ──────────", "#6EA8FE");
         try
         {
-            // ① 更新 package.json 版本
+            var oldVer = ReadPackageVersion();
+            // ① 更新 package.json 版本（构建失败会还原）
             Log(ReleaseLog, "① 更新 package.json 版本 → " + newVer, "#9FE8B5");
             UpdatePackageVersion(newVer);
 
@@ -273,34 +284,25 @@ public partial class MainWindow : Window
                 s => Log(ReleaseLog, s), s => Log(ReleaseLog, s, "#FF8A8A"), env, Encoding.UTF8);
             if (code != 0)
             {
-                Log(ReleaseLog, $"✗ 构建{(online ? "/发布" : "")}失败（退出码 {code}）", "#FF8A8A");
+                UpdatePackageVersion(oldVer);
+                Log(ReleaseLog, $"✗ 构建{(online ? "/发布" : "")}失败（退出码 {code}），已还原版本号为 {oldVer}", "#FF8A8A");
                 MessageBox.Show(this, "构建失败，请查看上方红色日志。", "构建失败", MessageBoxButton.OK, MessageBoxImage.Error);
                 return;
             }
             Log(ReleaseLog, $"✓ 构建{(online ? "并发布到 GitHub" : "")}完成", "#9FE8B5");
 
-            // ③ 写入发布说明（GitHub Release body → 应用内"本次更新"更新日志）
+            // ③ 转正 GitHub Release 并写入发布说明（GitHub REST API，不再依赖 gh CLI）
             if (online)
             {
                 // electron-builder 上传完资产后偶尔会把 release 留在草稿态，
-                // 草稿不算 latest，应用会查不到更新——这里统一转正。
-                Log(ReleaseLog, "③ 转正 GitHub Release（防止停留在草稿）", "#9FE8B5");
-                var relEdit = await RunCmdAsync("gh", $"release edit v{newVer} --draft=false", _rootDir,
-                    s => Log(ReleaseLog, s), s => Log(ReleaseLog, s, "#FF8A8A"));
-                if (relEdit != 0) Log(ReleaseLog, "⚠ Release 转正失败（请确认已安装并登录 gh CLI）", "#FFB24D");
-                else Log(ReleaseLog, "✓ Release 已发布为正式版本", "#9FE8B5");
-
+                // 草稿不算 latest，应用会查不到更新——这里统一转正并写入 body。
+                Log(ReleaseLog, "③ 转正 GitHub Release 并写入发布说明", "#9FE8B5");
                 var notes = ReleaseNotesBox.Text.Trim();
-                if (!string.IsNullOrEmpty(notes))
-                {
-                    Log(ReleaseLog, "   写入发布说明到 GitHub Release", "#9FE8B5");
-                    var notesPath = Path.Combine(Path.GetTempPath(), $"cwb-notes-{newVer}.md");
-                    File.WriteAllText(notesPath, notes, new UTF8Encoding(false));
-                    var n = await RunCmdAsync("gh", $"release edit v{newVer} --notes-file \"{notesPath}\"", _rootDir,
-                        s => Log(ReleaseLog, s), s => Log(ReleaseLog, s, "#FF8A8A"));
-                    if (n != 0) Log(ReleaseLog, "⚠ 发布说明写入失败（请确认已安装并登录 gh CLI）", "#FFB24D");
-                    else Log(ReleaseLog, "✓ 发布说明已写入（应用内即可看到）", "#9FE8B5");
-                }
+                var finalize = await FinalizeRelease(newVer, notes, effectiveToken!);
+                if (finalize != 0) Log(ReleaseLog, "   ⚠ 转正/写说明失败，请按上方日志排查（Token 需有 repo 权限）", "#FFB24D");
+                else Log(ReleaseLog, notes.Length > 0
+                    ? "   ✓ Release 已转正，发布说明已写入（应用内即可看到）"
+                    : "   ✓ Release 已发布为正式版本", "#9FE8B5");
             }
 
             // ④ 提交并推送版本号改动（仅在线发布时）
@@ -334,6 +336,119 @@ public partial class MainWindow : Window
         {
             SetBusy(false, ReleaseButton, ReleaseButtonText, "开 始 发 布");
         }
+    }
+
+    /// <summary>
+    /// 发布前自检：分支 / 工作区干净 / 版本是否已发布。
+    /// 任一项被用户取消则返回 false，中止发布。
+    /// </summary>
+    private async Task<bool> PreflightChecks(string newVer, string token)
+    {
+        // ① 分支
+        var branch = RunQuick("git", "rev-parse --abbrev-ref HEAD", _rootDir);
+        if (!string.IsNullOrEmpty(branch) && branch != "main" && branch != "master")
+        {
+            Log(ReleaseLog, $"⚠ 当前分支：{branch}（不是 main），建议切回 main 再发布", "#FFB24D");
+            if (MessageBox.Show(this, $"当前分支：{branch}\n建议在 main 上发布。仍要继续吗？", "分支检查",
+                MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return false;
+        }
+
+        // ② 工作区干净
+        var dirty = RunQuick("git", "status --porcelain", _rootDir);
+        if (!string.IsNullOrEmpty(dirty))
+        {
+            var lines = dirty.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+            var preview = string.Join('\n', lines.Take(5));
+            if (lines.Length > 5) preview += "\n…";
+            Log(ReleaseLog, "⚠ 工作区有未提交改动，仍继续发布", "#FFB24D");
+            if (MessageBox.Show(this, $"工作区有未提交改动：\n{preview}\n\n版本号改动会一并提交。仍要发布吗？", "工作区检查",
+                MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return false;
+        }
+
+        // ③ 版本是否已发布（v{newVer} 的 Release 是否已存在）
+        try
+        {
+            using var client = CreateGitHubClient(token);
+            var resp = await client.GetAsync($"{GITHUB_API}/repos/{OWNER}/{REPO}/releases/tags/v{newVer}");
+            if (resp.IsSuccessStatusCode)
+            {
+                Log(ReleaseLog, $"⚠ v{newVer} 已存在 Release，重复发布可能失败", "#FFB24D");
+                if (MessageBox.Show(this, $"GitHub 上已存在 v{newVer} 的 Release。\n重复发布可能报错。仍要继续吗？", "版本已存在",
+                    MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return false;
+            }
+        }
+        catch (Exception ex)
+        {
+            Log(ReleaseLog, "⚠ 版本重复检查失败（网络/Token），已跳过：" + ex.Message, "#FFB24D");
+        }
+        return true;
+    }
+
+    /// <summary>
+    /// 转正 GitHub Release 并可选写入发布说明（GitHub REST API，不依赖 gh CLI）。
+    /// 返回 0 表示成功；非 0 表示失败。
+    /// </summary>
+    private async Task<int> FinalizeRelease(string newVer, string notes, string token)
+    {
+        using var client = CreateGitHubClient(token);
+        var tag = $"v{newVer}";
+        HttpResponseMessage get;
+        try
+        {
+            get = await client.GetAsync($"{GITHUB_API}/repos/{OWNER}/{REPO}/releases/tags/{tag}");
+        }
+        catch (Exception ex)
+        {
+            Log(ReleaseLog, "   ⚠ 查询 Release 失败：" + ex.Message, "#FFB24D");
+            return 1;
+        }
+        if (!get.IsSuccessStatusCode)
+        {
+            Log(ReleaseLog, $"   ⚠ 找不到 Release {tag}（HTTP {(int)get.StatusCode}），可能未上传或 tag 名不一致", "#FFB24D");
+            return 1;
+        }
+        var rel = JsonNode.Parse(await get.Content.ReadAsStringAsync());
+        var id = rel?["id"]?.GetValue<long>();
+        if (id is null)
+        {
+            Log(ReleaseLog, "   ⚠ 无法解析 Release id", "#FFB24D");
+            return 1;
+        }
+
+        // PATCH：转正 + 可选写入发布说明（一次请求，notes 为空时保留原 body）
+        var patch = new JsonObject { ["draft"] = false };
+        if (!string.IsNullOrWhiteSpace(notes)) patch["body"] = notes;
+        using var req = new HttpRequestMessage(new HttpMethod("PATCH"),
+            $"{GITHUB_API}/repos/{OWNER}/{REPO}/releases/{id}")
+        {
+            Content = new StringContent(patch.ToJsonString(), Encoding.UTF8, "application/json")
+        };
+        try
+        {
+            using var resp = await client.SendAsync(req);
+            if (!resp.IsSuccessStatusCode)
+            {
+                Log(ReleaseLog, $"   ⚠ 转正/写说明失败（HTTP {(int)resp.StatusCode}），请确认 Token 有 repo 权限", "#FFB24D");
+                return 1;
+            }
+        }
+        catch (Exception ex)
+        {
+            Log(ReleaseLog, "   ⚠ 转正/写说明失败：" + ex.Message, "#FFB24D");
+            return 1;
+        }
+        return 0;
+    }
+
+    private static HttpClient CreateGitHubClient(string token)
+    {
+        var client = new HttpClient();
+        client.DefaultRequestHeaders.Add("User-Agent", "ClassWorkBench-PublishHelper/1.0");
+        client.DefaultRequestHeaders.Add("Accept", "application/vnd.github+json");
+        client.DefaultRequestHeaders.Add("X-GitHub-Api-Version", "2022-11-28");
+        client.DefaultRequestHeaders.Authorization =
+            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        return client;
     }
 
     // =====================================================================
