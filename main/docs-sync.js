@@ -18,7 +18,7 @@ const DOC_FILES = Object.freeze({
 });
 
 // 主仓库 org/repo（避免与页面名拼写漂移，集中在此）
-const OWNER = 'Windows-11-Pro';
+const OWNER = 'ClassWorkBench';
 const REPO = 'classworkbench';
 const SITE_REPO = 'classworkbench-site';
 

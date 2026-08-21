@@ -426,7 +426,7 @@ public partial class MainWindow : Window
             }
 
             Log(DocsLog, "③ 完成！约 1~几分钟后 GitHub Pages 生效", "#9FE8B5");
-            Log(DocsLog, "   https://windows-11-pro.github.io/classworkbench-site/", "#9FE8B5");
+            Log(DocsLog, "   https://classworkbench.github.io/classworkbench-site/", "#9FE8B5");
             MessageBox.Show(this, "协议文档已推送到 GitHub，\n约 1~几分钟后应用即可拉到最新文档。", "推送成功",
                 MessageBoxButton.OK, MessageBoxImage.Information);
         }
