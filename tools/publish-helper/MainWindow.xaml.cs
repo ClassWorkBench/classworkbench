@@ -252,7 +252,12 @@ public partial class MainWindow : Window
             }
             var buildArgs = online ? "--publish always" : "--publish never";
             Log(ReleaseLog, "② 执行 electron-builder " + buildArgs, "#9FE8B5");
-            var env = new Dictionary<string, string>();
+            var env = new Dictionary<string, string>
+            {
+                // 本机装有自定义根证书时，Node 默认证书库不信任会报 TLS 校验失败；
+                // 让 Node 同时使用系统证书库（Node ≥ 22.12 支持，缺失时无害）。
+                ["NODE_OPTIONS"] = "--use-system-ca"
+            };
             if (online && !string.IsNullOrEmpty(token)) env["GH_TOKEN"] = token;
             var code = await RunCmdAsync("cmd.exe", $"/c \"\"{builder}\" {buildArgs}\"", _rootDir,
                 s => Log(ReleaseLog, s), s => Log(ReleaseLog, s, "#FF8A8A"), env, Encoding.UTF8);
