@@ -132,8 +132,9 @@
         const base = collectBase(incArchive);
         let matched = base.filter(h => filterByCriteria(h, from, to));
 
-        // 排序：有关键词按相关度升序（越上越不匹配）；无关键词按日期降序
-        if (currentKw) matched.sort((a, b) => computeScore(a) - computeScore(b));
+        // 排序：column-reverse 下 DOM 最前显示在列表最底部，故按相关度降序
+        // （最匹配排最前 → 落在底部），恰好「越往下越匹配」。
+        if (currentKw) matched.sort((a, b) => computeScore(b) - computeScore(a));
         else matched.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
 
         if (elSummary) elSummary.textContent = matched.length ? `${matched.length} 条匹配` : '';

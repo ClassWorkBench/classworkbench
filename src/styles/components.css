@@ -3151,7 +3151,7 @@ body.reduce-anim .dialog {
 .sm-list {
     overflow-y: auto;
     display: flex;
-    flex-direction: column;
+    flex-direction: column-reverse; /* 反转：第一个结果贴底部，滚动停在「最匹配」端 */
     gap: 7px;
     padding: 0 12px;
     margin-top: 10px;
