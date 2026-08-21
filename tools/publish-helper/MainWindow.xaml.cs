@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.IO;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Windows;
@@ -280,11 +281,15 @@ public partial class MainWindow : Window
                 var p = await RunCmdAsync("git", "push", _rootDir, s => Log(ReleaseLog, s), s => Log(ReleaseLog, s, "#FF8A8A"));
                 if (p != 0) Log(ReleaseLog, "⚠ 代码推送失败，请稍后手动 git push", "#FFB24D");
                 else Log(ReleaseLog, "✓ 版本号已提交并推送", "#9FE8B5");
+
+                // ④ 同步官网下载链接（index.html / manual.html → 最新版本）
+                Log(ReleaseLog, "④ 更新官网下载链接 → v" + newVer, "#9FE8B5");
+                await UpdateSiteDownloadLinks(newVer, ReleaseLog);
             }
 
             Log(ReleaseLog, "────────── 发布完成 ✓ ──────────", "#9FE8B5");
             MessageBox.Show(this, online
-                ? $"v{newVer} 已发布到 GitHub Releases。\n应用内点击「检查更新」即可在线升级。"
+                ? $"v{newVer} 已发布到 GitHub Releases。\n应用内点击「检查更新」即可在线升级；\n官网下载链接已同步。"
                 : $"v{newVer} 本地构建完成。", "发布完成", MessageBoxButton.OK, MessageBoxImage.Information);
         }
         catch (Exception ex)
@@ -303,6 +308,61 @@ public partial class MainWindow : Window
     // =====================================================================
     private void PickSrc_Click(object sender, RoutedEventArgs e) => PickFolder(ref _srcDir, SrcPathText);
     private void PickSite_Click(object sender, RoutedEventArgs e) => PickFolder(ref _siteDir, SitePathText);
+
+    /// <summary>
+    /// 更新 classworkbench-site 的下载链接为指定版本并推送。
+    /// 站点不可用或无改动时只记录警告，不阻断发布。
+    /// </summary>
+    private async Task UpdateSiteDownloadLinks(string newVer, RichTextBox logBox)
+    {
+        if (!Directory.Exists(_siteDir) || !Directory.Exists(Path.Combine(_siteDir, ".git")))
+        {
+            Log(logBox, $"   ⚠ 站点工作区不可用：{_siteDir}", "#FFB24D");
+            return;
+        }
+
+        var pattern = new Regex(@"releases/download/v[\d.]+/classworkbench-setup-[\d.]+\.exe", RegexOptions.IgnoreCase);
+        var replacement = $"releases/download/v{newVer}/classworkbench-setup-{newVer}.exe";
+        var changed = false;
+
+        foreach (var name in new[] { "index.html", "manual.html" })
+        {
+            var file = Path.Combine(_siteDir, name);
+            if (!File.Exists(file))
+            {
+                Log(logBox, $"   ⚠ 站点缺少 {name}，跳过", "#FFB24D");
+                continue;
+            }
+            var content = File.ReadAllText(file, Encoding.UTF8);
+            var updated = pattern.Replace(content, replacement);
+            if (updated == content)
+            {
+                Log(logBox, $"   · {name} 无旧版下载链接，跳过", "#B7BED9");
+                continue;
+            }
+            File.WriteAllText(file, updated, new UTF8Encoding(false));
+            changed = true;
+            Log(logBox, $"   ✓ {name} → v{newVer}", "#9FE8B5");
+        }
+
+        if (!changed) return;
+
+        await RunCmdAsync("git", "add index.html manual.html", _siteDir,
+            s => Log(logBox, s), s => Log(logBox, s, "#FF8A8A"));
+        var commit = await RunCmdAsync("git", $"commit -m \"chore: 更新下载链接 v{newVer}\"", _siteDir,
+            s => Log(logBox, s), s => Log(logBox, s, "#FF8A8A"));
+        if (commit != 0)
+        {
+            Log(logBox, "   ⚠ 站点提交未产生新提交（可能无改动）", "#FFB24D");
+            return;
+        }
+        var push = await RunCmdAsync("git", "push", _siteDir,
+            s => Log(logBox, s), s => Log(logBox, s, "#FF8A8A"));
+        Log(logBox, push == 0
+            ? "   ✓ 官网下载链接已推送（Pages 约 1~几分钟后生效）"
+            : "   ⚠ 站点推送失败，请手动 git push",
+            push == 0 ? "#9FE8B5" : "#FFB24D");
+    }
 
     private void PickFolder(ref string target, TextBlock display)
     {
