@@ -41,11 +41,19 @@
           "qq-listener.exe"
         ]
       }
+    ],
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "Windows-11-Pro",
+        "repo": "classworkbench"
+      }
     ]
   },
   "dependencies": {
     "atomically": "^2.0.3",
-    "electron-log": "^5.2.0"
+    "electron-log": "^5.2.0",
+    "electron-updater": "^6.8.9"
   },
   "devDependencies": {
     "electron": "^33.0.0",

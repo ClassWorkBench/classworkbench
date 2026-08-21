@@ -1815,6 +1815,79 @@ body.reduce-anim .segmented .seg-btn {
     overflow-y: auto;
     padding-right: 4px;
 }
+
+/* 检查更新按钮（关于面板） */
+.about-update-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    width: 100%;
+    margin-top: 10px;
+    padding: 9px 0;
+    border: 1px solid rgba(0, 0, 0, 0.06);
+    border-radius: 12px;
+    background: rgba(0, 0, 0, 0.03);
+    color: var(--text-primary);
+    font-size: 0.86rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: 0.25s var(--transition-smooth);
+}
+.about-update-btn svg {
+    width: 1rem;
+    height: 1rem;
+    color: var(--accent);
+}
+.about-update-btn:hover {
+    background: rgba(0, 0, 0, 0.06);
+}
+.about-update-btn:active {
+    transform: scale(0.97);
+}
+.about-update-btn.has-update {
+    background: rgba(var(--accent-rgb, 45, 62, 142), 0.1);
+    border-color: rgba(var(--accent-rgb, 45, 62, 142), 0.25);
+    color: var(--accent);
+}
+
+/* 软件更新对话框 */
+.update-dialog-title {
+    font-size: 1.05rem;
+    font-weight: 700;
+    padding: 2px 2px 10px;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+    margin-bottom: 12px;
+}
+.update-dialog-body {
+    font-size: 0.92rem;
+    color: var(--text-primary);
+    line-height: 1.7;
+    margin-bottom: 14px;
+}
+.update-dialog-body b {
+    font-size: 1.02rem;
+    color: var(--accent);
+}
+.update-cur {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    margin-top: 2px;
+}
+.update-err {
+    font-size: 0.82rem;
+    color: #d45a5a;
+    margin-top: 4px;
+}
+.update-progress {
+    display: inline-block;
+    padding: 4px 14px;
+    border-radius: 999px;
+    background: rgba(var(--accent-rgb, 45, 62, 142), 0.1);
+    color: var(--accent);
+    font-weight: 700;
+    font-size: 0.9rem;
+}
 .panel-header h3 {
     font-size: 1.1rem;
     font-weight: 700;

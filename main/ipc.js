@@ -21,12 +21,13 @@
  * @param {object} opts.cipher      - 数据加密模块（status 供设置面板展示）
  * @param {object} opts.docsSync   - 协议/文档在线同步模块（readDoc / readBundled / parseVersion / sync）
  * @param {object} opts.qweather   - 和风天气 JWT 客户端（get / generateToken）
+ * @param {object} opts.updater    - 自动更新模块（check / download / install / getState）
  * @param {Function} opts.getMainWindow - 获取当前主窗口（page:copy / 关闭窗口用）
  * @param {Function} opts.getQqConfig - 从 store 取当前 QQ 设置（qq:toggle / qq:updateConfig 用）
  */
 function setupIpc({
     ipcMain, clipboard, shell, log, store,
-    archive, bg, autoLaunch, sidecar, backup, floating, cipher, docsSync, qweather,
+    archive, bg, autoLaunch, sidecar, backup, floating, cipher, docsSync, qweather, updater,
     getMainWindow, getQqConfig, fs, path, app
 }) {
 
@@ -179,6 +180,13 @@ function setupIpc({
 
     // 应用版本号（取 package.json 的 version 字段）
     ipcMain.handle('app:getVersion', () => ({ success: true, version: app.getVersion() }));
+
+    // ===== 自动更新（electron-updater + GitHub Releases） =====
+    // 状态变化由主进程以 updater:event 实时推送；渲染层另可随时拉取快照。
+    ipcMain.handle('updater:check', () => updater.check());
+    ipcMain.handle('updater:download', () => updater.download());
+    ipcMain.handle('updater:install', () => updater.install());
+    ipcMain.handle('updater:state', () => updater.getState());
 
     // ===== 协议/文档读取（白名单文件名） =====
     // 在线缓存优先（sync 后台已拉取最新），无在线缓存时回退随应用分发的源文件。

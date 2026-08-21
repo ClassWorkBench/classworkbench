@@ -83,6 +83,24 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // 应用版本号（来自 package.json）
     getVersion: () => ipcRenderer.invoke('app:getVersion'),
 
+    // 自动更新（electron-updater + GitHub Releases）：检查/下载/安装均需用户确认
+    update: {
+        // 检查更新（返回立即结果；后续状态靠 onEvent 推送）
+        check: () => ipcRenderer.invoke('updater:check'),
+        // 确认后开始下载
+        download: () => ipcRenderer.invoke('updater:download'),
+        // 确认后退出应用并安装
+        install: () => ipcRenderer.invoke('updater:install'),
+        // 拉取当前更新状态快照（status/version/percent/error）
+        getState: () => ipcRenderer.invoke('updater:state'),
+        // 订阅更新事件：{ type: checking|available|progress|downloaded|not-available|error, ... }
+        onEvent: (cb) => {
+            const h = (_e, data) => cb(data);
+            ipcRenderer.on('updater:event', h);
+            return () => ipcRenderer.removeListener('updater:event', h);
+        },
+    },
+
     // 数据加密状态（算法 / 密钥保护方式，供设置面板展示）
     getCipherStatus: () => ipcRenderer.invoke('app:cipherStatus'),
 

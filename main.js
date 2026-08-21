@@ -32,6 +32,7 @@ const { createDataStore } = require('./main/data-store');
 const { createWindowModule } = require('./main/window');
 const { createDocsSync } = require('./main/docs-sync');
 const { createQweatherClient } = require('./main/qweather-auth');
+const { createUpdaterModule } = require('./main/updater');
 const { setupIpc } = require('./main/ipc');
 
 // ============================================
@@ -74,6 +75,7 @@ if (!gotTheLock) {
     let windowMod = null;
     let docsSync = null;
     let qweather = null;
+    let updater = null;
 
     // ---- 主窗口变化时把引用同步给 mainWindowRef（供 IPC/second-instance 调用） ----
     function onMainWindowChange(w) { mainWindowRef.value = w; }
@@ -192,11 +194,18 @@ if (!gotTheLock) {
         // 和风天气 JWT 认证客户端（主进程签名，渲染层不接触私钥）
         qweather = createQweatherClient({ net, log });
 
+        // 自动更新（electron-updater + GitHub Releases）：启动静默检查一次，交互由用户确认
+        updater = createUpdaterModule({
+            app, log,
+            getMainWindow: () => mainWindowRef.value
+        });
+        updater.setup();
+
         // ---- IPC 胶水层 ----
         setupIpc({
             ipcMain, clipboard, shell, log, store,
             archive, bg, autoLaunch, sidecar, backup, floating, cipher, docsSync,
-            qweather,
+            qweather, updater,
             getMainWindow: () => mainWindowRef.value,
             getQqConfig,
             fs, path, app
@@ -220,6 +229,9 @@ if (!gotTheLock) {
                 emitToRenderer('docs:updated', summary);
             }
         }).catch((e) => log.error('[docs-sync] 后台同步失败:', e));
+
+        // 启动静默检查更新（发现新版不打扰，等用户在"关于"面板操作）
+        updater.check().catch((e) => log.error('[updater] 启动检查失败:', e));
     });
 
     app.on('activate', () => {
