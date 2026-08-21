@@ -400,13 +400,13 @@
 
         setTimeout(() => {
             // 第 1 步：切入搜索内容。标准模式「钉住」在菜单尺寸上再弹性伸展；
-            // 减弱模式不撑大——宽度直接取 .more-sheet-search 的 400px，高度先钉住再 0.2s 平滑过渡。
+            // 减弱模式整块淡入（模态弹窗式）：panel 整体透明度 0→1，掩盖宽度/高度切换，不撑大、不坠落。
             buildMicroHtml();
             panel.classList.add('more-sheet-search');
             panel.style.overflow = 'hidden';
             if (reduced) {
-                panel.style.height = h0 + 'px';
-                panel.style.transition = 'opacity 0.25s ease, height 0.2s ease';
+                panel.style.transition = 'opacity 0.3s ease-out, height 0.2s ease';
+                panel.style.opacity = '0';
             } else {
                 panel.style.width = w0 + 'px';
                 panel.style.height = h0 + 'px';
@@ -414,11 +414,10 @@
                     'width 0.45s var(--transition-spring), ' +
                     'height 0.45s var(--transition-spring), ' +
                     'opacity 0.25s var(--transition-smooth)';
+                // 搜索内容初始透明，随形变一起淡入（玻璃面板全程在，无空档）
+                root.style.opacity = '0';
+                root.style.transition = 'opacity 0.25s var(--transition-smooth)';
             }
-
-            // 搜索内容初始透明，随形变一起淡入（玻璃面板全程在，无空档）
-            root.style.opacity = '0';
-            root.style.transition = 'opacity 0.25s ease';
 
             // 渲染筛选胶囊与事件（elFilters 已在 buildMicroHtml 中赋值并挂到 body）
             elKw = root.querySelector('.sm-input');
@@ -438,19 +437,20 @@
             // ESC：微窗内先返回菜单，再按则关闭（用捕获阶段以优先于 more-menu 的关闭逻辑）
             document.addEventListener('keydown', escHandler, true);
 
-            // 第 2 步：下一帧统一触发「宽度伸展 + 高度收敛 + 内容淡入 + 搜索盒坠落」
-            // 减弱模式：不撑大、不坠落，只淡入。
+            // 第 2 步：下一帧统一触发形变。标准模式「宽度伸展 + 高度收敛 + 内容淡入 + 搜索盒坠落」；
+            // 减弱模式：不撑大、不坠落，panel 整块淡入（模态弹窗式），尺寸切换被透明度掩盖。
             // 钉住的值先提交一帧，再一并改变，才能让 弹簧过渡 从起点跑到终点。
             requestAnimationFrame(() => requestAnimationFrame(() => {
                 buildList();                 // 初始渲染提示「输入关键词开始搜索」
-                syncSize();                  // 量出搜索态目标高度，触发 h0→H 收敛
+                syncSize();                  // 量出搜索态目标高度
                 if (reduced) {
                     if (box) { box.style.transition = 'none'; box.style.transform = 'none'; box.style.opacity = '1'; box.classList.remove('sm-drop'); } // 搜索盒直接就位，不坠落
+                    panel.style.opacity = '1'; // 整块淡入（模态弹窗式），掩盖宽度/高度切换
                 } else {
                     panel.style.width = '';  // 交还 .more-sheet-search 的 400px，触发 w0→400
+                    root.style.opacity = '1'; // 淡入搜索内容
                     if (box) box.classList.remove('sm-drop'); // 搜索盒「从天而降」
                 }
-                root.style.opacity = '1';      // 淡入搜索内容
                 updateMoreState();             // 初始化 ⋮ 高亮态（无筛选时不亮）
             }));
 
@@ -531,6 +531,15 @@
         });
     }
 
+    // 面板内容重建后：清空微窗引用，并重新绑定菜单按钮事件（DOM 已替换，旧事件失效）
+    function resetRefsAndRebind() {
+        root = null; listEl = null; elKw = null;
+        if (window.AppMoreMenu && typeof window.AppMoreMenu.bindButtons === 'function') {
+            window.AppMoreMenu.bindButtons();
+        }
+        elFilters = null; elSummary = null; elFrom = null; elTo = null; elArchive = null;
+    }
+
     function restore() {
         if (!microActive) return;
         microActive = false;
@@ -539,6 +548,39 @@
         document.removeEventListener('mousedown', onDocDown, true);
 
         const reduced = !!(state.settings && state.settings.reduceAnimation);
+
+        if (reduced) {
+            // 减弱：整块淡出搜索态 → 切回菜单 → 整块淡入（模态弹窗式淡入淡出，
+            // 宽度/高度回缩发生在面板透明期间，被透明度掩盖，无瞬间跳变）
+            setTimeout(() => {
+                panel.style.transition = 'opacity 0.2s ease-out';
+                panel.style.opacity = '0';
+                setTimeout(() => {
+                    // 切回菜单内容（此时面板透明，尺寸切换不可见）
+                    panel.innerHTML = savedMenuHtml;
+                    panel.classList.remove('more-sheet-search');
+                    if (elFilters && elFilters.parentNode === document.body) elFilters.remove();
+                    panel.style.width = '';
+                    panel.style.height = '';
+                    panel.style.overflow = '';
+                    panel.style.opacity = '1';   // 整块淡入菜单
+                    // 动画结束后清除过渡残留，恢复菜单自身样式，并重新居中到更多按钮
+                    setTimeout(() => {
+                        panel.style.width = '';
+                        panel.style.height = '';
+                        panel.style.overflow = '';
+                        panel.style.opacity = '';
+                        panel.style.transition = '';
+                        if (window.AppMoreMenu && typeof window.AppMoreMenu.positionPanel === 'function') {
+                            window.AppMoreMenu.positionPanel();
+                        }
+                    }, 350);
+                    resetRefsAndRebind();
+                }, 220);
+            }, 120);
+            return;
+        }
+
         const curH = panel.offsetHeight;
         const curW = panel.offsetWidth;
 
@@ -555,67 +597,40 @@
             // 卸载挂到 body 的筛选浮层
             if (elFilters && elFilters.parentNode === document.body) elFilters.remove();
 
-            if (reduced) {
-                // 减弱：不做宽度/高度形变回缩，直接恢复菜单尺寸并淡入
+            // 测定菜单内容自然尺寸（此段为同步回流，用户看不到中间态）
+            panel.style.width = 'auto';
+            panel.style.height = 'auto';
+            const menuW = panel.offsetWidth;
+            const menuH = panel.offsetHeight;
+            panel.style.width = curW + 'px';
+            panel.style.height = curH + 'px';
+            panel.style.overflow = 'hidden';
+            panel.style.opacity = '0';
+            panel.style.transition =
+                'width 0.4s var(--transition-spring), ' +
+                'height 0.4s var(--transition-spring), ' +
+                'opacity 0.25s var(--transition-smooth)';
+
+            // 下一帧触发「宽度收窄 + 高度回缩 + 淡入」的变形还原
+            requestAnimationFrame(() => {
+                panel.style.width = menuW + 'px';
+                panel.style.height = menuH + 'px';
+                panel.style.opacity = '1';
+            });
+
+            // 动画结束后清除过渡残留，恢复菜单自身样式，并重新居中到更多按钮
+            setTimeout(() => {
                 panel.style.width = '';
                 panel.style.height = '';
                 panel.style.overflow = '';
-                panel.style.opacity = '0';
-                panel.style.transition = 'opacity 0.25s ease';
-                requestAnimationFrame(() => {
-                    panel.style.opacity = '1';
-                });
-                setTimeout(() => {
-                    panel.style.width = '';
-                    panel.style.height = '';
-                    panel.style.overflow = '';
-                    panel.style.opacity = '';
-                    panel.style.transition = '';
-                    if (window.AppMoreMenu && typeof window.AppMoreMenu.positionPanel === 'function') {
-                        window.AppMoreMenu.positionPanel();
-                    }
-                }, 300);
-            } else {
-                // 测定菜单内容自然尺寸（此段为同步回流，用户看不到中间态）
-                panel.style.width = 'auto';
-                panel.style.height = 'auto';
-                const menuW = panel.offsetWidth;
-                const menuH = panel.offsetHeight;
-                panel.style.width = curW + 'px';
-                panel.style.height = curH + 'px';
-                panel.style.overflow = 'hidden';
-                panel.style.opacity = '0';
-                panel.style.transition =
-                    'width 0.4s var(--transition-spring), ' +
-                    'height 0.4s var(--transition-spring), ' +
-                    'opacity 0.25s var(--transition-smooth)';
+                panel.style.opacity = '';
+                panel.style.transition = '';
+                if (window.AppMoreMenu && typeof window.AppMoreMenu.positionPanel === 'function') {
+                    window.AppMoreMenu.positionPanel();
+                }
+            }, 460);
 
-                // 下一帧触发「宽度收窄 + 高度回缩 + 淡入」的变形还原
-                requestAnimationFrame(() => {
-                    panel.style.width = menuW + 'px';
-                    panel.style.height = menuH + 'px';
-                    panel.style.opacity = '1';
-                });
-
-                // 动画结束后清除过渡残留，恢复菜单自身样式，并重新居中到更多按钮
-                setTimeout(() => {
-                    panel.style.width = '';
-                    panel.style.height = '';
-                    panel.style.overflow = '';
-                    panel.style.opacity = '';
-                    panel.style.transition = '';
-                    if (window.AppMoreMenu && typeof window.AppMoreMenu.positionPanel === 'function') {
-                        window.AppMoreMenu.positionPanel();
-                    }
-                }, 460);
-            }
-
-            root = null; listEl = null; elKw = null;
-            // 面板内按钮 DOM 被重建，原事件失效，重新绑定
-            if (window.AppMoreMenu && typeof window.AppMoreMenu.bindButtons === 'function') {
-                window.AppMoreMenu.bindButtons();
-            }
-            elFilters = null; elSummary = null; elFrom = null; elTo = null; elArchive = null;
+            resetRefsAndRebind();
         }, 150);
     }
 
