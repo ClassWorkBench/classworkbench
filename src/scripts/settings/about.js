@@ -37,8 +37,6 @@ window.SettingsModules.about = {
 
                             <div class="about-meta">
                                 <div class="about-meta-row"><span>版本</span><b id="aboutVersion">加载中…</b></div>
-                                <div class="about-meta-row"><span>开源协议</span><b>MIT License</b></div>
-                                <div class="about-meta-row"><span>技术栈</span><b>Electron 33 + 原生 JS/CSS</b></div>
                                 <div class="about-meta-row"><span>协议文档版本</span><b id="aboutDocVersion">${escapeHtml(docVer)}</b></div>
                             </div>
 
@@ -51,15 +49,7 @@ window.SettingsModules.about = {
                                     <button class="about-doc-link" type="button" data-doc="opensource"><span class="doc-ico">${DOC_ICONS.opensource}</span>开源软件声明</button>
                                     <button class="about-doc-link" type="button" data-doc="contact"><span class="doc-ico">${DOC_ICONS.contact}</span>联系我们</button>
                                 </div>
-                                <small class="field-hint">点击查看完整文档内容（与首次向导一致；启动后后台自动同步线上最新版本）</small>
                             </div>
-
-                            <div class="setting-group">
-                                <label>技术说明</label>
-                                <small class="field-hint">数据全部存储于本机，不上传任何服务器；QQ 监听通过系统通知 API 在本地完成，凭据不离开设备。详见上方《数据的安全性》。</small>
-                            </div>
-
-                            <p class="about-footer">© 2024–2026 班级工作台（ClassWorkBench）。基于 MIT 协议开源。<br>使用 Fluent UI Emoji 彩色图标；本软件与 Microsoft 无隶属关系。</p>
                         </div>
                     </div>
         `;
