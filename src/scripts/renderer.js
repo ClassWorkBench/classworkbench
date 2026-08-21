@@ -67,8 +67,13 @@
             const todays = state.homeworks.filter(hw => hw.date === viewDate && (!fm || !fm.shouldHideCard(hw.id)));
 
             if (todays.length === 0) {
-                fragment.appendChild(document.createElement('div'));
+                cardsGrid.classList.add('grid-empty-state');
+                const hint = document.createElement('div');
+                hint.className = 'grid-empty';
+                hint.textContent = '今天还没有作业，点下方学科按钮添加';
+                fragment.appendChild(hint);
             } else {
+                cardsGrid.classList.remove('grid-empty-state');
                 let ordered;
                 if (state.settings.cardColumns === 3) {
                     // 3列：跳过 JS 两列排序，按原始顺序追加，交给 CSS columns 自动排版

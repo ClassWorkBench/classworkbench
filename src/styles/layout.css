@@ -147,6 +147,24 @@ body:has(.bg-layer.loaded) .bg-mask {
     }
 }
 
+/* 空状态：今天没作业时，把瀑布流切换为居中的引导提示 */
+.cards-grid.grid-empty-state {
+    columns: auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 45vh;
+}
+.grid-empty {
+    color: var(--text-muted);
+    font-size: 0.95rem;
+    line-height: 1.7;
+    text-align: center;
+    opacity: 0.85;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
 /* 底栏胶囊 */
 .bottom-capsule {
     position: fixed;

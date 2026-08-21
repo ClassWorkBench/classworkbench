@@ -29,7 +29,8 @@ html.float-window body {
 html.float-window body.fade-out {
     animation: none;
     opacity: 0;
-    transition: opacity 0.3s ease;
+    transform: scale(0.96);
+    transition: opacity 0.3s ease, transform 0.3s ease;
 }
 
 @keyframes floatFadeIn {
