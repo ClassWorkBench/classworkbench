@@ -318,3 +318,27 @@ html.float-window body.fade-out {
 #floatProbe.probe-faded {
     opacity: 0.25;
 }
+
+/* ---------- 减弱动画（body.reduce-anim，由主窗口 settings.reduceAnimation 驱动） ----------
+   浮窗侧只保留柔和淡入淡出：body 入场去掉缩放、探头弹出去掉缩放、
+   操作按钮展开只淡入、贴边收起/展开内容过渡加速且去掉回弹。 */
+html.float-window body.reduce-anim {
+    animation-duration: 0.3s !important;
+    animation-timing-function: ease-out !important;
+    transform: none !important;
+}
+html.float-window body.reduce-anim .float-probe {
+    animation-duration: 0.12s !important;
+    animation-timing-function: ease-out !important;
+    transform: none !important;
+}
+html.float-window body.reduce-anim .f-act {
+    transform: none !important;
+    transition-duration: 0.2s !important;
+    transition-timing-function: ease-out !important;
+}
+html.float-window body.reduce-anim .float-card.probe-shrink,
+html.float-window body.reduce-anim .float-card.probe-grow {
+    transition-duration: 0.12s !important;
+    transition-timing-function: ease-out !important;
+}

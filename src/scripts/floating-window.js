@@ -52,6 +52,8 @@
             document.body.innerHTML = '<div class="float-error">浮窗数据加载失败</div>';
             return;
         }
+        // 主进程 settings 里的减弱动画开关：挂在 body class 上，floating.css 据此只留柔和淡入淡出
+        if (cardData.reduceAnimation) document.body.classList.add('reduce-anim');
 
         const card = cardData.card;
         const cardEl = document.getElementById('floatCard');

@@ -420,9 +420,13 @@
             });
             // 强制刷新，确保浏览器记录"旧位置"
             void cardsGrid.offsetWidth;
-            // Last：启用过渡，清除 transform，平滑滑到新位置
+            // Last：启用过渡，清除 transform，平滑滑到新位置（减弱动画时缩短时长、去掉回弹）
+            const reduced = !!state.settings.reduceAnimation;
+            const MOVE = reduced
+                ? 'transform 0.2s ease, box-shadow 0.2s ease'
+                : 'transform 0.42s var(--transition-soft-spring), box-shadow 0.4s var(--transition-smooth)';
             flipCards.forEach(({ el }) => {
-                el.style.transition = 'transform 0.42s var(--transition-soft-spring), box-shadow 0.4s var(--transition-smooth)';
+                el.style.transition = MOVE;
                 el.style.transform = '';
             });
             // 过渡结束后清理 inline 样式，恢复 hover 等正常行为
@@ -440,7 +444,7 @@
             };
             cardsGrid.addEventListener('transitionend', onTransEnd);
             // 兜底：超时后强制清理，避免 transitionend 漏触发导致 inline 样式残留
-            setTimeout(cleanup, 520);
+            setTimeout(cleanup, reduced ? 280 : 520);
         },
 
         // 日期切换滑切转场：双「屏」并排平推（新屏从目标侧滑入、旧屏反向滑出）
@@ -503,18 +507,32 @@
 
             // 整屏宽度作为位移量：保证「屏」作为一个整体完全移出/移入可视区域
             const pix = grid.clientWidth;
+            const reduced = !!state.settings.reduceAnimation;
 
-            // 5) 新屏初始先整体停在目标侧的一个整屏宽处（不触发过渡）
+            // 5) 新屏初始先停在目标状态（滑切=目标侧一个整屏宽；减弱=透明即可），不触发过渡
             newLayer.style.transition = 'none';
-            newLayer.style.transform = `translateX(${dirX * pix}px)`;
+            if (reduced) {
+                newLayer.style.opacity = '0';
+                newLayer.style.transform = 'none';
+            } else {
+                newLayer.style.transform = `translateX(${dirX * pix}px)`;
+            }
 
-            // 6) 播放：新屏滑回原位、旧屏反向滑出
+            // 6) 播放：滑切=平移交换；减弱=纯淡入淡出（真实减小运动量）
             requestAnimationFrame(() => requestAnimationFrame(() => {
-                const TRANS = `transform 0.5s var(--transition-push)`;
-                newLayer.style.transition = TRANS;
-                newLayer.style.transform = 'translateX(0)';
-                oldLayer.style.transition = TRANS;
-                oldLayer.style.transform = `translateX(${-dirX * pix}px)`;
+                if (reduced) {
+                    const FADE = 'opacity 0.3s ease';
+                    newLayer.style.transition = FADE;
+                    newLayer.style.opacity = '1';
+                    oldLayer.style.transition = FADE;
+                    oldLayer.style.opacity = '0';
+                } else {
+                    const TRANS = `transform 0.5s var(--transition-push)`;
+                    newLayer.style.transition = TRANS;
+                    newLayer.style.transform = 'translateX(0)';
+                    oldLayer.style.transition = TRANS;
+                    oldLayer.style.transform = `translateX(${-dirX * pix}px)`;
+                }
 
                 // 7) 滑动结束后：外层高度从「两屏最大值」过渡回新屏实际高度，再整体复位
                 this._slideTimer = setTimeout(() => {

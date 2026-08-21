@@ -182,7 +182,8 @@ if (!gotTheLock) {
             getMainWindow: () => mainWindowRef.value,
             showMainWindow: () => windowMod.showMainWindow(),
             isQuitting: () => isQuittingRef.value,
-            emit: emitToRenderer
+            emit: emitToRenderer,
+            getSettings: () => store.get('settings') || {}
         });
 
         // 协议/文档在线同步（三级兜底 + SHA-256 比对 + 本地缓存），不阻塞启动

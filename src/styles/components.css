@@ -2752,6 +2752,28 @@ body.reduce-anim .dialog {
     transition-duration: 0.3s !important;
     transition-timing-function: ease-out !important;
 }
+/* 预警胶囊：去掉横向弹入的位移/缩放，只留淡入 */
+body.reduce-anim .alert-area {
+    transform: none !important;
+    animation-duration: 0.3s !important;
+    animation-timing-function: ease-out !important;
+}
+/* 预警小圆点：去掉无限呼吸脉冲，保持常亮（文案与计数仍传达紧急度） */
+body.reduce-anim .alert-dot {
+    animation: none !important;
+}
+/* 删除确认脉冲：缩短时长、去掉回弹（只留轻微缩放反馈，不设 transform:none，
+   否则纯 scale 的 keyframes 会因位移被清零而完全不可见） */
+body.reduce-anim .card-actions.confirming .c-del {
+    animation-duration: 0.3s !important;
+    animation-timing-function: ease-out !important;
+}
+/* 控制点弹出面板：去掉上移/缩放，只留淡入 */
+body.reduce-anim .cp-pop {
+    transform: none !important;
+    animation-duration: 0.25s !important;
+    animation-timing-function: ease-out !important;
+}
 
 /* ============================================
  * 数据管理面板：紧凑行式布局

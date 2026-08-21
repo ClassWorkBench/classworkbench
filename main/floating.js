@@ -36,8 +36,9 @@ const EASE_OUT_QUINT = (t) => 1 - Math.pow(1 - t, 5); // 展开：先快后慢�
  * @param {() => void} opts.showMainWindow - 显示主窗口（退出浮窗时恢复）
  * @param {() => boolean} opts.isQuitting - 应用是否正在退出（托盘退出等；退出时浮窗关闭不得恢复主界面）
  * @param {(event: string, data?: any) => void} opts.emit - 向主窗口渲染层发事件
+ * @param {() => object} opts.getSettings - 读取主进程 settings（减弱动画开关 reduceAnimation）
  */
-function createFloatingModule({ BrowserWindow, screen, path, log, assetsDir, getMainWindow, showMainWindow, isQuitting, emit }) {
+function createFloatingModule({ BrowserWindow, screen, path, log, assetsDir, getMainWindow, showMainWindow, isQuitting, emit, getSettings }) {
 
     /** @type {Map<string, {card: object, win: BrowserWindow, height: number, ready: boolean, x: number, y: number}>} */
     const entries = new Map();
@@ -73,6 +74,17 @@ function createFloatingModule({ BrowserWindow, screen, path, log, assetsDir, get
 
     function getCount() { return entries.size; }
 
+    /** 当前是否开启「减弱动画」（读主进程 settings.reduceAnimation，异常回退标准） */
+    function isReducedMotion() {
+        try { return !!(getSettings && getSettings().reduceAnimation); } catch (e) { return false; }
+    }
+    /** 减弱动画下的窗口矩形动画规格：时长减半、缓动换线性（去掉吸附/回弹的急停感） */
+    function animSpec(normalMs, ease) {
+        return isReducedMotion()
+            ? { ms: Math.round(normalMs / 2), ease: (t) => t }
+            : { ms: normalMs, ease };
+    }
+
     function hideMainWindow() {
         try {
             const w = getMainWindow && getMainWindow();
@@ -83,7 +95,7 @@ function createFloatingModule({ BrowserWindow, screen, path, log, assetsDir, get
     function getCardForWebContents(wcId) {
         for (const [id, entry] of entries.entries()) {
             if (entry.win && !entry.win.isDestroyed() && entry.win.webContents.id === wcId) {
-                return { card: entry.card };
+                return { card: entry.card, reduceAnimation: isReducedMotion() };
             }
         }
         return null;
@@ -408,12 +420,13 @@ function createFloatingModule({ BrowserWindow, screen, path, log, assetsDir, get
         // 双泳道收起：先发 probe 让渲染层把卡片缩成彩条（CSS transition，GPU 合成），
         // 60ms 后窗口矩形再跟上（native setBounds），缩放过程盖住内容收缩，视觉连贯
         send(entry, 'float:probe', { side, color: entry.card.color || '#5b6abf' });
+        const spec = animSpec(DOCK_ANIM_MS, EASE_IN_OUT_QUINT);
         setTimeout(() => {
             if (!entry.dock || entry.win.isDestroyed()) return;
             const cur = entry.win.getBounds();
             animateRect(entry,
                 { x: cur.x, y: cur.y, width: cur.width, height: cur.height },
-                toProbe, DOCK_ANIM_MS, EASE_IN_OUT_QUINT, () => {
+                toProbe, spec.ms, spec.ease, () => {
                     if (!entry.dock || entry.win.isDestroyed()) return;
                     entry.dock.phase = 'probe';
                     // 变成小探头后，3 秒淡化
@@ -460,7 +473,8 @@ function createFloatingModule({ BrowserWindow, screen, path, log, assetsDir, get
         entry.animating = false;
         const b = entry.win.getBounds();
         entry.dock = null;
-        animateRect(entry, { x: b.x, y: b.y, width: b.width, height: b.height }, d.from, DOCK_ANIM_MS, EASE_OUT_QUINT, () => {
+        const spec = animSpec(DOCK_ANIM_MS, EASE_OUT_QUINT);
+        animateRect(entry, { x: b.x, y: b.y, width: b.width, height: b.height }, d.from, spec.ms, spec.ease, () => {
             if (entry.win.isDestroyed()) return;
             send(entry, 'float:probe-off');
         });
