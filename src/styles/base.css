@@ -70,6 +70,13 @@
 /* 全局重置 */
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
+/* 所有 <img> 默认禁止拖拽：否则 emoji SVG 图标会被当成普通图片按住拖出窗口，观感不像原生应用。
+   注意：天气城市排序用的是 div[draggable] 的 HTML5 拖放，不受此规则影响。 */
+img {
+    -webkit-user-drag: none;
+    user-drag: none;
+}
+
 /* 自定义滚动条 —— 2px 超细指示器风格 */
 ::-webkit-scrollbar {
     width: 2px;

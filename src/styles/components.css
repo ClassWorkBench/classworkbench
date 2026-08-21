@@ -3207,6 +3207,8 @@ body.reduce-anim .dialog {
 }
 .sm-box.sm-drop { transform: translateY(-160%); opacity: 0; }
 .sm-box-icon { width: 17px; height: 17px; flex-shrink: 0; }
+/* 搜索框放大镜：经 emoji('🔍') 输出，保持与旧 .sm-box-icon 一致的 17px 尺寸 */
+.sm-box .emoji { width: 17px; height: 17px; flex-shrink: 0; }
 .sm-input {
     flex: 1;
     min-width: 0;

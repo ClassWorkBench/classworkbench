@@ -471,7 +471,7 @@
             <div class="sm-list"></div>
 
             <div class="sm-box sm-drop">
-                <img class="sm-box-icon" src="emoji/magnifying_glass_color.svg" alt="">
+                ${emoji('🔍')}
                 <input type="text" class="sm-input" placeholder="搜索作业内容…" autocomplete="off">
                 <button type="button" class="sm-more" aria-label="筛选" aria-haspopup="true" aria-expanded="false">
                     <span class="sm-more-dots"><i></i><i></i><i></i></span>

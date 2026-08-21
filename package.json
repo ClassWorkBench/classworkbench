@@ -7,7 +7,8 @@
   "scripts": {
     "dev": "electron .",
     "build": "electron-builder",
-    "docs:publish": "node scripts/publish-docs.mjs"
+    "docs:publish": "node scripts/publish-docs.mjs",
+    "check:emoji": "node scripts/check-emoji.mjs"
   },
   "build": {
     "appId": "com.classworkbench.app",
