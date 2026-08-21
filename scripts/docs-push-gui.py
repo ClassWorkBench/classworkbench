@@ -185,6 +185,8 @@ class DocPushApp:
 
             # 1) 复制文档到网站仓库 docs/
             self.log(f"① 复制 {len(picked)} 份文档到网站仓库 docs/")
+            if len(picked) < len(DOC_FILES):
+                self.log("   未勾选的文档保持线上原样，不会被删除", "ok")
             missing = []
             for f in picked:
                 s = os.path.join(src, f)
@@ -193,11 +195,6 @@ class DocPushApp:
                     continue
                 shutil.copyfile(s, os.path.join(out_dir, f))
                 self.log(f"   ✓ {f}", "ok")
-            for f in DOC_FILES:
-                old = os.path.join(out_dir, f)
-                if f not in picked and os.path.exists(old):
-                    os.remove(old)
-                    self.log(f"   ↺ 已移除 {f}（本次未勾选）", "ok")
             if missing:
                 self.log("   以下文件不存在，已跳过：", "err")
                 for f in missing:
