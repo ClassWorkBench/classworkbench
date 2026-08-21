@@ -31,6 +31,10 @@ function createUpdaterModule({ app, log, getMainWindow, net }) {
         if (w && !w.isDestroyed()) w.webContents.send('updater:event', { type, ...payload });
     }
 
+    // ---- 更新日志运行期缓存：同一会话只拉一次，避免重复请求触发 GitHub API 限流 ----
+    let notesCache = null;
+    let notesPromise = null;
+
     function setup() {
         autoUpdater.logger = log;
         autoUpdater.autoDownload = false;          // 不自动下载，等用户确认
@@ -76,26 +80,34 @@ function createUpdaterModule({ app, log, getMainWindow, net }) {
         return !app.isPackaged;
     }
 
-    /** 拉取 GitHub 最新 release 说明（更新日志），失败返回 null */
-    async function latestNotes() {
-        try {
-            const res = await net.fetch(
-                'https://api.github.com/repos/ClassWorkBench/classworkbench/releases/latest',
-                { headers: { 'Accept': 'application/vnd.github+json' } }
-            );
-            if (!res.ok) {
-                log.warn('[updater] 拉取更新日志失败 HTTP', res.status);
-                return null;
-            }
-            const data = await res.json();
-            return {
-                version: (data.tag_name || '').replace(/^v/i, ''),
-                notes: data.body || ''
-            };
-        } catch (e) {
-            log.error('[updater] 拉取更新日志失败:', e);
-            return null;
+    /** 拉取 GitHub 最新 release 说明（更新日志），失败返回 null；运行期缓存 + 并发去重 */
+    function latestNotes() {
+        if (isDev()) return Promise.resolve(null);   // 开发模式不打 GitHub API
+        if (notesCache) return Promise.resolve(notesCache);
+        if (!notesPromise) {
+            notesPromise = (async () => {
+                try {
+                    const res = await net.fetch(
+                        'https://api.github.com/repos/ClassWorkBench/classworkbench/releases/latest',
+                        { headers: { 'Accept': 'application/vnd.github+json' } }
+                    );
+                    if (!res.ok) {
+                        log.warn('[updater] 拉取更新日志失败 HTTP', res.status);
+                        return null;
+                    }
+                    const data = await res.json();
+                    notesCache = {
+                        version: (data.tag_name || '').replace(/^v/i, ''),
+                        notes: data.body || ''
+                    };
+                    return notesCache;
+                } catch (e) {
+                    log.error('[updater] 拉取更新日志失败:', e);
+                    return null;
+                }
+            })();
         }
+        return notesPromise;
     }
 
     /** 检查更新（启动静默 / 手动触发共用）。后续状态靠 updater:event 推送。 */

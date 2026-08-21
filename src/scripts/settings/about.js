@@ -188,8 +188,11 @@ window.SettingsModules.about = {
                     case 'checking':
                         set('正在检查更新…', '');
                         break;
-                    case 'available':
-                        set(`发现新版本 <b>v${ev.version}</b><div class="update-cur">当前版本 v${curVer}</div>${cachedNotes && cachedNotes.notes ? notesHtml(cachedNotes.notes, cachedNotes.version) : ''}`,
+                    case 'available': {
+                        // 优先用已拉取到的更新日志，失败时兜底 electron-updater 事件自带的 releaseNotes
+                        const notes = (cachedNotes && cachedNotes.notes) || ev.releaseNotes || '';
+                        const notesVersion = (cachedNotes && cachedNotes.version) || ev.version;
+                        set(`发现新版本 <b>v${ev.version}</b><div class="update-cur">当前版本 v${curVer}</div>${notes ? notesHtml(notes, notesVersion) : ''}`,
                             '<button class="btn primary" id="uDownload">立即下载</button><button class="btn" id="uLater">稍后再说</button>');
                         actions.querySelector('#uDownload').onclick = () => {
                             api.update.download();
@@ -197,6 +200,7 @@ window.SettingsModules.about = {
                         };
                         actions.querySelector('#uLater').onclick = close;
                         break;
+                    }
                     case 'progress': {
                         const p = actions.querySelector('#uProgress');
                         if (p) p.textContent = (ev.percent || 0) + '%';

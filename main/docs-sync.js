@@ -30,6 +30,7 @@ const SOURCE_BASES = [
 ];
 
 const PER_SOURCE_TIMEOUT = 6000;   // 单个源超时（ms），整链最多约 18s
+const SYNC_TTL_MS = 12 * 60 * 60 * 1000;  // 距上次成功同步不足该时长且缓存有效 → 跳过网络拉取
 const CACHE_DIR_NAME = 'doc-cache';
 const META_FILE = 'meta.json';
 
@@ -74,6 +75,17 @@ function createDocsSync({ app, fs, path, crypto, net, log }) {
         const tmp = `${metaPath()}.tmp-${Date.now()}`;
         fs.writeFileSync(tmp, JSON.stringify(meta, null, 2), 'utf8');
         fs.renameSync(tmp, metaPath());
+    }
+
+    // ---- TTL 判断：所有文档缓存均在有效期内且文件存在 → 无需联网 ----
+    function isSyncFresh(meta) {
+        const cutoff = Date.now() - SYNC_TTL_MS;
+        for (const name of Object.keys(DOC_FILES)) {
+            const m = meta && meta[name];
+            if (!m || !m.fetchedAt || m.fetchedAt < cutoff) return false;
+            if (!fs.existsSync(contentPath(name))) return false;
+        }
+        return true;
     }
 
     // ---- 读取某文档当前生效内容：在线缓存优先，无缓存回退随应用分发的源文件 ----
@@ -134,6 +146,13 @@ function createDocsSync({ app, fs, path, crypto, net, log }) {
      */
     async function sync() {
         const prevMeta = readMeta();
+        // TTL 短路：缓存仍在有效期内则跳过网络拉取，直接返回缓存状态（不产生 changed）
+        if (isSyncFresh(prevMeta)) {
+            log.info('[docs-sync] 缓存仍在有效期内，跳过在线同步');
+            const effective = {};
+            for (const name of Object.keys(DOC_FILES)) if (prevMeta[name]) effective[name] = prevMeta[name];
+            return { changed: [], failed: [], effective, fresh: true };
+        }
         const changed = [];
         const failed = [];
         const effective = {};
