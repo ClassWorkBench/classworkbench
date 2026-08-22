@@ -1,10 +1,10 @@
 # 班级工作台 (ClassWorkBench) · Code Wiki
 
-> 版本：1.1.0　|　应用 ID：`com.classworkbench.app`　|　技术栈：Electron 33 + 原生 JS/CSS + C# Sidecar
+> 版本：1.0.0　|　应用 ID：`com.classworkbench.app`　|　技术栈：Electron 33 + 原生 JS/CSS + C# Sidecar
 >
 > 本文档基于源码静态分析生成，覆盖项目整体架构、模块职责、关键类与函数、依赖关系及运行方式。
 >
-> **v1.1.0 更新**：主进程模块化（`main/` 目录）、浮窗模式（画中画）、多城市天气搜索、备份与恢复系统、自定义颜色选择器、辅助功能设置、设置面板拆分（`settings/` 目录）、IPC 通道全量更新。
+> **版本演进**：v1.0.0 起已完成主进程模块化（`main/` 目录）、浮窗模式（画中画）、多城市天气搜索、备份恢复、自定义颜色选择器、辅助功能设置、设置面板拆分（`settings/` 目录）、**作业搜索**、**自动更新**（electron-updater + GitHub Releases）、**协议文档在线同步**（三源兜底 + SHA-256）、**和风天气 JWT 认证**、**首启向导**、**Fluent UI Emoji 图标系统**等全部能力。
 
 ---
 
@@ -51,12 +51,16 @@
 | 系统托盘       | 关闭窗口隐藏到托盘，托盘菜单可显示主界面或退出                                                            |
 | 开机自启       | Windows 登录项，开机后以后台模式启动并最小化到托盘                                                      |
 | 复制排版图      | 截取当前页面写入剪贴板，可直接粘贴到 QQ/微信                                                            |
+| **作业搜索**     | 更多菜单 → 作业搜索：按关键词/学科/日期范围，支持标题+内容+学科名匹配，可选包含归档，命中高亮 + 跳转到日期                       |
+| **自动更新**     | electron-updater + GitHub Releases：启动静默检查一次，检查/下载/安装全由用户在"关于"面板确认，状态机实时推送             |
+| **协议文档同步**   | 启动后台异步三源兜底拉取线上协议/文档（GitHub Pages → jsDelivr → raw），SHA-256 比对落盘缓存，变更即通知重新确认           |
+| **首启向导**     | 首次启动向导：设置加密开关 / 默认学科配色，随后进入主界面                                              |
 | 自定义窗口      | 无边框窗口 + 自定义关闭按钮                                                                     |
 
 ### 设计特点
 
 - **无打包器/无框架**：渲染层全部使用原生 JS，通过 `window.*` 全局对象暴露模块，按依赖顺序在 `index.html` 中以 `<script>` 标签加载。
-- **主进程模块化 + 工厂依赖注入**：`main.js` 仅 ~180 行启动编排；业务逻辑下沉到 `main/` 下 9 个领域模块，每个模块导出 `createXxxModule(deps)` 工厂函数，由 `main.js` 显式注入依赖（store / fs / log / 回调等），无全局单例，便于测试。
+- **主进程模块化 + 工厂依赖注入**：`main.js` 仅 ~180 行启动编排；业务逻辑下沉到 `main/` 下 14 个领域模块，每个模块导出 `createXxxModule(deps)` 工厂函数，由 `main.js` 显式注入依赖（store / fs / log / 回调等），无全局单例，便于测试。
 - **安全 IPC**：主进程关闭 `nodeIntegration`、开启 `contextIsolation` + `sandbox`，仅通过 `preload.js` / `floating-preload.js` 的 `contextBridge` 暴露最小 API。CSP 策略限制资源加载范围。
 - **数据加密**：自实现加密存储替代 electron-store —— AES-256-GCM 加密主数据文件，密钥经 Windows DPAPI 加密落盘，仅当前用户可解；GCM AuthTag 提供完整性校验，密文被改一个字节解密必失败；safeStorage 不可用时降级明文并如实暴露状态。
 - **玻璃拟态 UI**：顶栏/底栏/弹窗/卡片统一使用 `backdrop-filter` 毛玻璃 + 半透明底风格，三路均可单独关闭（辅助功能）。
@@ -76,8 +80,10 @@
 ┌────────────────────────────────────────────────────────────────────┐
 │                主进程 main.js（启动编排层，~180 行）                    │
 │   工厂实例化 + 显式依赖注入，模块间通过回调/引用对象通信                     │
-│  ┌──────────────────────── main/ 领域模块（9 个）──────────────────┐ │
+│  ┌──────────────────────── main/ 领域模块（14 个）──────────────────┐ │
 │  │ constants.js  共享常量（图源/自启注册表/Sidecar阈值/窗口尺寸）       │ │
+│  │ data-cipher.js 数据加密原语（AES-256-GCM + DPAPI）  ★              │ │
+│  │ data-store.js  加密存储（兼容 electron-store 接口）              │ │
 │  │ window.js     主窗口 BrowserWindow + Tray + 生命周期钩子          │ │
 │  │ archive.js    按月归档（原子写入/损坏备份/幂等去重）                 │ │
 │  │ background-cache.js  背景图缓存（魔数校验/索引/下载驱逐）           │ │
@@ -85,17 +91,20 @@
 │  │ sidecar.js    QQ Sidecar 进程管理（崩溃退避/竞态修复）             │ │
 │  │ backup.js     备份导出导入/恢复前快照/归档收集写回                   │ │
 │  │ floating.js   浮窗模式（画中画：每卡一窗，置顶/拖动/贴边/预展）        │ │
-│  │ ipc.js        IPC 胶水层（32 个 handler，无业务逻辑）              │ │
+│  │ docs-sync.js  协议/文档三源同步（Pages/jsDelivr/raw + SHA-256）   │ │
+│  │ qweather-auth.js 和风天气 JWT 认证客户端（主进程签名）             │ │
+│  │ updater.js    自动更新（electron-updater + GitHub Releases）    │ │
+│  │ ipc.js        IPC 胶水层（41 个 handler，无业务逻辑）              │ │
 │  └───────────────────────────────────────────────────────────────┘ │
 │                              │                                      │
-│                      IPC Handlers（32 个）                           │
+│                      IPC Handlers（41 个）                           │
 └──────────────┬─────────────────────────┬───────────────────────────┘
                │ preload.js              │ floating-preload.js
       ┌────────┴─────────┐    ┌──────────┴──────────┐
       │  主窗口渲染进程     │    │  浮窗渲染进程（N 个）   │
       │ src/scripts/*.js │    │ floating.html        │
-      │ + settings/ 8 个  │    │ floating-window.js   │
-      │ （30 个脚本）      │    │ 复用主窗口卡片样式       │
+      │ + settings/ 9 个  │    │ floating-window.js   │
+      │ （34 个脚本）      │    │ 复用主窗口卡片样式       │
       └────────┬─────────┘    └─────────────────────┘
                │ spawn
 ┌──────────────┴─────────────────────────────────────────────────────┐
@@ -109,7 +118,7 @@
 
 | 进程       | 文件                                       | 职责                                                       |
 | -------- | ---------------------------------------- | -------------------------------------------------------- |
-| 主进程     | `main.js` + `main/*.js` (9 个)            | 启动编排、依赖注入；窗口/托盘生命周期、electron-store 读写、按月归档、背图下载缓存、QQ sidecar 管理、开机自启、备份恢复文件操作、浮窗窗口管理、IPC 注册、截图剪贴板 |
+| 主进程     | `main.js` + `main/*.js` (14 个)           | 启动编排、依赖注入；窗口/托盘生命周期、加密存储读写、按月归档、背图下载缓存、QQ sidecar 管理、开机自启、备份恢复文件操作、浮窗窗口管理、协议文档同步、和风 JWT 认证、自动更新、IPC 注册、截图剪贴板 |
 | 预加载     | `preload.js` / `floating-preload.js`     | 通过 `contextBridge.exposeInMainWorld` 暴露安全的 `electronAPI` / `floatingAPI` |
 | 主窗口渲染  | `src/scripts/*.js` + `src/scripts/settings/*.js` | 全部 UI 逻辑，以 `window.App*` 命名空间组织                      |
 | 浮窗渲染   | `floating.html` + `src/scripts/floating-window.js` | 单卡片展示 + 高度测量上报 + 贴边探头交互（复用主窗口卡片样式）          |
@@ -122,7 +131,7 @@
 ```
 ClassWorkBench/
 ├── main.js                 # 主进程入口（启动编排层，~180 行）
-├── main/                   # ★ 主进程领域模块（拆分自 main.js）
+├── main/                   # ★ 主进程领域模块（14 个，拆分自 main.js）
 │   ├── constants.js        #   共享常量：图源/缓存上限/自启注册表/Sidecar 阈值/窗口尺寸/存储默认值
 │   ├── data-cipher.js      #   ★ 数据加密原语（AES-256-GCM + DPAPI 密钥保护）
 │   ├── data-store.js       #   ★ 加密数据存储（内存读写 + 加密落盘 + 旧明文迁移 + 损坏自愈）
@@ -133,22 +142,26 @@ ClassWorkBench/
 │   ├── sidecar.js          #   QQ Sidecar 进程管理（spawn/taskkill/退避重启/竞态修复）
 │   ├── backup.js           #   备份与恢复（导出导入对话框/恢复前快照/归档收集写回）
 │   ├── floating.js         #   浮窗模式（每卡一窗/布局/贴边 dock/预展/动画）
-│   └── ipc.js              #   IPC 胶水层（32 个 handler：参数校验→调模块→返回）
+│   ├── docs-sync.js        #   ★ 协议/文档在线同步（三源兜底 + SHA-256 比对 + TTL 缓存）
+│   ├── qweather-auth.js    #   ★ 和风天气 JWT 认证客户端（主进程签名，私钥不入渲染层）
+│   ├── updater.js          #   ★ 自动更新（electron-updater + GitHub Releases 状态机）
+│   └── ipc.js              #   IPC 胶水层（41 个 handler：参数校验→调模块→返回）
 ├── preload.js              # 主窗口预加载脚本（IPC 桥接）
 ├── floating.html           # ★ 浮窗窗口 HTML（复用主窗口卡片样式）
 ├── floating-preload.js     # ★ 浮窗预加载脚本（最小 IPC 面）
 ├── index.html              # 主窗口 HTML（加载所有 CSS/JS，含 CSP）
-├── 宣传册.html              # 面向学生/访客的产品宣传页（HyperOS 风格，部署 GitHub Pages）
-├── assets/hyperos/         # 宣传册图片素材（31 张 webp）
 ├── package.json            # 项目配置 + electron-builder 构建配置
 ├── 图标.ico                # 应用图标
-├── test.bat                # 快速启动脚本（npm run dev）
-├── build.bat               # 构建脚本
+├── emoji/                  # ★ Fluent UI Emoji 彩色 SVG 图标（38 个）
+│   ├── emoji-map.js        #   字符→SVG 映射表（页面加载时替换 <img class=emoji> 的 src）
+│   ├── sun_color.svg       #   例：天气/时间相关的彩色花式子图标
+│   └── ...                 #   alarm/car/cloud/memo/pencil 等 38 个 SVG
+├── icons/                  # 扁平面板图标（4 个：绿/白圆、锁、信息）
 ├── src/
-│   ├── scripts/            # 渲染进程 JS 模块（24 个）
+│   ├── scripts/            # 渲染进程 JS 模块（24 个 + settings/ 9 个）
 │   │   ├── config.js           # 常量：存储键、默认学科、地区坐标、天气码字典、和风图标映射、Geocoding URL
 │   │   ├── state.js            # 全局状态 + DOM 引用（含多城市/模糊/动画设置）
-│   │   ├── utils.js            # 工具函数（日期/JSON/HTML转义/编号/Toast）
+│   │   ├── utils.js            # 工具函数（日期/JSON/HTML转义/编号/Toast/Markdown）
 │   │   ├── storage.js          # 数据加载/持久化（IPC 封装 + 串行队列 + 回滚）
 │   │   ├── styling.js          # 样式应用
 │   │   ├── weather.js          # ★ 天气（双 API + 多城市搜索 + 预警 + 离线缓存 + 定时刷新）
@@ -156,6 +169,7 @@ ClassWorkBench/
 │   │   ├── layout.js           # 顶栏高度自适应
 │   │   ├── renderer.js         # 渲染引擎（卡片/底栏/时钟/晚修/徽标）
 │   │   ├── modal.js            # 通用模态框（支持嵌套/替换）
+│   │   ├── search.js           # ★ 作业搜索（关键词/学科/日期范围 + 归档可选 + 高亮跳转）
 │   │   ├── dialogs.js          # 业务弹窗（添加/修改作业 + 自动编号）
 │   │   ├── color-picker.js     # ★ 自定义颜色选择器（5 套色系，弹出层）
 │   │   ├── archive-renderer.js # 归档查看视图（只读）
@@ -163,13 +177,14 @@ ClassWorkBench/
 │   │   ├── qq-pending-dialog.js# ★ 待确认作业面板（徽标/采纳/合并/忽略）
 │   │   ├── backup.js           # ★ 备份与恢复（渲染层业务：分组勾选/日期范围/快照/合并）
 │   │   ├── settings.js         # 设置面板入口（组装 ctx + 左右分栏骨架）
+│   │   ├── wizard.js           # ★ 首启向导（加密开关/默认学科配色）
 │   │   ├── floating-mode.js    # ★ 主窗口侧浮窗模式控制（进入/退出/卡片过滤）
 │   │   ├── floating-window.js  # ★ 浮窗窗口渲染层（内容填充/高度测量/菜单/贴边探头）
-│   │   ├── more-menu.js        # ★ 更多菜单（复制排版图/设置/浮窗模式）
+│   │   ├── more-menu.js        # ★ 更多菜单（搜索/复制排版图/浮窗/设置）
 │   │   ├── window-controls.js  # ★ 自定义窗口关闭按钮
 │   │   ├── datepicker.js       # 日期选择器/导航
 │   │   ├── main.js             # 渲染进程入口（启动编排）
-│   │   └── settings/           # ★ 设置面板子模块（8 个）
+│   │   └── settings/           # ★ 设置面板子模块（9 个）
 │   │       ├── nav.js          #   左侧导航切换
 │   │       ├── general.js      #   常规设置（晚修时段/开机自启）
 │   │       ├── weather.js      #   天气面板（provider 切换/城市搜索列表/API 配置弹窗/预警筛选/刷新）
@@ -177,19 +192,28 @@ ClassWorkBench/
 │   │       ├── accessibility.js#   辅助功能（字号三档/减弱动画/三路模糊开关）
 │   │       ├── subjects.js     #   学科管理（增删 + ColorPicker）
 │   │       ├── qq.js           #   QQ 监听（老师绑定/关键词/高级参数/运行状态）
-│   │       └── data.js         #   数据管理（归档入口/备份恢复入口/清空）
-│   └── styles/             # 样式文件（5 个）
+│   │       ├── data.js         #   数据管理（归档入口/备份恢复入口/清空）
+│   │       └── about.js        #   ★ 关于（版本号/检查更新/本次更新/协议文档入口）
+│   └── styles/             # 样式文件（6 个）
 │       ├── base.css            # CSS 变量、全局重置、滚动条
 │       ├── layout.css          # 背景层、顶/底栏、卡片网格布局
 │       ├── components.css      # 组件样式（卡片/按钮/弹窗/Toast/设置项/取色器/备份弹窗…）
 │       ├── animations.css      # 关键帧动画 + 响应式
-│       └── floating.css        # ★ 浮窗专属（窗口定位/拖拽/控件/贴边探头）
+│       ├── floating.css        # ★ 浮窗专属（窗口定位/拖拽/控件/贴边探头）
+│       └── wizard.css          # ★ 首启向导专属样式
 ├── sidecar/                # QQ 监听 Sidecar（C# .NET 8 源码 + 编译产物）
 │   └── qq-listener/        # C# 项目
 │       └── bin/Release/.../publish/qq-listener.exe
-├── dist/                  # 构建产物（electron-builder 输出）
-│   ├── 班级工作台 Setup 1.0.0.exe   # NSIS 安装包
-│   └── win-unpacked/             # 解包版（含 app.asar）
+├── tools/                  # 开发辅助脚本
+│   ├── check-emoji.mjs     #   ★ emoji-map.js 与 emoji/ 目录一致性校验（npm run check:emoji）
+│   └── publish-helper/     #   ★ 发布助手（WPF/.NET：发新版本 + 同步协议文档）
+├── docs/dev/               # 开发者文档
+│   ├── CODE_WIKI.md        #   本文档
+│   └── UNINSTALL_DATA_CLEANUP.md  # 卸载数据清理说明
+├── build/                  # 安装包定制
+│   └── cwb-uninstaller.nsh #   卸载时询问是否删除用户数据
+├── dist/                  # 构建产物（electron-builder 输出，git 忽略）
+├── icons/                 # 应用相关图标
 └── node_modules/          # 依赖
 ```
 
@@ -197,7 +221,7 @@ ClassWorkBench/
 
 ## 4. 主进程（main.js + main/ 模块）
 
-> `main.js` 已从 1134 行精简为 ~180 行**启动编排层**。所有业务逻辑下沉到 `main/` 下 9 个领域模块，每个模块导出 `createXxxModule(deps)` 工厂函数，由 `main.js` 在 `whenReady` 后显式注入依赖。
+> `main.js` 已从 1134 行精简为 ~180 行**启动编排层**。所有业务逻辑下沉到 `main/` 下 14 个领域模块，每个模块导出 `createXxxModule(deps)` 工厂函数，由 `main.js` 在 `whenReady` 后显式注入依赖。
 
 ### 4.1 模块化设计
 
@@ -215,9 +239,13 @@ main.js（编排层）
   ├─ createSidecarModule({ app, fs, path, log, spawn, execSync, callbacks:{emit} })
   ├─ createWindowModule({ BrowserWindow, Tray, Menu, ..., onMainWindowChange })
   ├─ createFloatingModule({ BrowserWindow, screen, path, log, getMainWindow, showMainWindow, emit })
+  ├─ createDocsSync({ app, fs, path, crypto, net, log })           ★ 协议/文档在线同步
+  ├─ createQweatherClient({ net, log })                            ★ 和风天气 JWT 认证
+  ├─ createUpdaterModule({ app, log, net, getMainWindow })         ★ 自动更新
   └─ setupIpc({ ipcMain, clipboard, shell, log, store,
                 archive, bg, autoLaunch, sidecar, backup, floating, cipher,
-                getMainWindow, getQqConfig })
+                docsSync, qweather, updater,
+                getMainWindow, getQqConfig, fs, path, app })
 ```
 
 **设计原则**：
@@ -226,6 +254,7 @@ main.js（编排层）
 - **ipc.js 是纯胶水层**：不写业务逻辑，只做"参数校验 → 调各模块方法 → 返回结果"。
 - **sidecar 不依赖窗口**：sidecar 模块通过 `callbacks.emit` 回调把事件交给 main.js 转发到渲染层，实现关注点分离。
 - **floating 模块通过 `getMainWindow()` / `showMainWindow()` 间接操作主窗口**，避免模块间循环依赖。
+- **私钥零泄露**：和风天气私钥只存在主进程内存，渲染层经 IPC 调用，`sanitizeForRenderer` 把回传值整理为 `*configured*` 掩码。
 
 ### 4.2 启动流程
 
@@ -242,15 +271,18 @@ app.requestSingleInstanceLock()         # 单实例锁，防止多开
                 ├─ createDataStore() + store.load()  # ★ 加密数据存储：读 .enc / 旧明文自动迁移 / 损坏自愈
                 ├─ dynamic import atomically → atomicWriteRef
                 ├─ 创建 archivesDir (userData/archives/)
-                ├─ 实例化其余领域模块（archive/bg/autoLaunch/backup/sidecar/window/floating）
-                ├─ setupIpc()                    # 注册 32 个 IPC handler
+                ├─ 实例化其余领域模块（archive/bg/autoLaunch/backup/sidecar/window/floating/docsSync/qweather/updater）
+                ├─ updater.setup()               # ★ 注册 autoUpdater 状态机事件监听
+                ├─ setupIpc()                    # 注册 41 个 IPC handler
                 ├─ bg.cleanupBgCache()           # 清理背景图缓存
                 ├─ autoLaunch.removeDevAutoLaunchEntry()  # 清理旧开发版自启项
                 ├─ windowMod.createWindow()      # 创建主窗口（无边框）
-                └─ windowMod.createTray()        # 创建系统托盘
+                ├─ windowMod.createTray()        # 创建系统托盘
+                ├─ docsSync.sync()               # ★ 后台异步拉取协议/文档（不阻塞）；变化则 emit 'docs:updated'
+                └─ updater.check()               # ★ 启动静默检查更新（发现新版不打扰）
 ```
 
-> **注意**：v1.1.0 起已弃用 electron-store，改用自实现的 `main/data-store.js` 加密存储（详见 4.10）。`--hidden` 启动参数控制开机自启时以后台模式启动（不显示窗口）。
+> **注意**：v1.0.0 起已弃用 electron-store，改用自实现的 `main/data-store.js` 加密存储（详见 4.10）。`--hidden` 启动参数控制开机自启时以后台模式启动（不显示窗口）。
 
 ### 4.3 constants.js — 共享常量
 
@@ -483,6 +515,63 @@ save() 加密开关：
 | 降级安全 | safeStorage 不可用时降级为透传（明文），状态如实暴露给用户，**不静默失败** |
 | 备份兼容 | 备份导出永远为明文 JSON（用户主动导出），导入时主进程重新加密落盘 |
 
+### 4.11 docs-sync.js — 协议/文档在线同步 ★
+
+> 启动时后台异步拉取线上最新协议/文档（AGREEMENT/PRIVACY/SECURITY/OPENSOURCE/CONTACT），三源兜底 + SHA-256 比对落盘缓存。**主仓库（GitHub）为唯一真源**；jsDelivr/raw 自动跟随主仓库 master 分支，GitHub Pages 由发布脚本同步。缓存目录 `userData/doc-cache/`。
+
+**三源兜底顺序**（主进程 `net.fetch`，绕过渲染层 CSP）：
+
+1. `https://{OWNER}.github.io/{SITE_REPO}/docs/`（GitHub Pages，内地相对稳）
+2. `https://cdn.jsdelivr.net/gh/{OWNER}/{REPO}@master/`（jsDelivr CDN）
+3. `https://raw.githubusercontent.com/{OWNER}/{REPO}/master/`（raw 直链，权威但内地不稳）
+
+| 常量 | 值 | 说明 |
+| --- | --- | --- |
+| `PER_SOURCE_TIMEOUT` | 6000ms | 单源超时，整链最多约 18s |
+| `SYNC_TTL_MS` | 12h | 距上次成功同步不足该时长且缓存有效 → 跳过网络拉取 |
+
+| 函数 | 说明 |
+| --- | --- |
+| `parseVersion(md)` | 从文档顶部 `**版本：vX.Y.Z**` 提取 semver，用于判断是否重新确认协议 |
+| `readDoc(name)` | 读取生效内容：在线缓存优先，无缓存回退随应用分发的源文件（损坏容错） |
+| `readBundled(name)` | 仅读随应用分发的源文件 |
+| `fetchDoc(name)` | 单文档三源兜底拉取：每个源 `AbortController` + 超时，失败自动切下一源 |
+| `sync()` | **一次性同步全部文档**：TTL 短路 → 并行拉取 → SHA-256 比对 → 变更才落盘 → 返回 `{changed, effective, failed}` |
+| `sourceFor(name)` | 本地生效对象最近一次成功来源（无则空串） |
+
+> **TTL 缓存**：所有文档缓存均在 12h 内且文件存在 → 直接返回 `{fresh:true}`，不产生网络请求也不触发 `<changed>`。
+
+### 4.12 qweather-auth.js — 和风天气 JWT 认证 ★
+
+> 和风推荐用 JWT（Ed25519）替代旧 API Key（旧 v7 warning 接口已废弃返回 403）。**私钥只存在于主进程**，渲染层永远拿不到。
+
+| 函数 | 签名 | 说明 |
+| --- | --- | --- |
+| `generateToken({kid, sub, privateKey})` | `→ string` | 生成 JWT：header 仅 `{alg:'EdDSA', kid}`，payload 仅 `{sub, iat(now-30s), exp(now+900s)}`；用 `crypto.sign(null,...)` 单次签名（Ed25519 不能用 createSign 流水线） |
+| `generateKeyPair()` | `→ {privateKey, publicKey}` | 生成本地 Ed25519 PKCS8/SPKI PEM 密钥对（设置界面"一键生成"） |
+| `get({host, cfg, endpoint, query})` | `→ Promise<JSON>` | 发起带 `Authorization: Bearer <token>` 的 GET 请求；403 时作废缓存重签一次 |
+| `getToken(cfg)` | `→ string` | 令牌缓存：同一配置距 exp ≤120s 才重新签名，避免 15 分钟内重复签名 |
+
+**JWT 结构**：`base64url(header) + '.' + base64url(payload) + '.' + base64url(signature)`，TTL 900s（15 分钟）。
+
+### 4.13 updater.js — 自动更新 ★
+
+> electron-updater + GitHub Releases（`package.json build.publish` 的 `latest.yml`）。**交互全部用户确认**：检查/下载/安装任一步都不自动执行。
+
+| 状态机 | `idle → checking → available → downloading → downloaded → not-available/error` |
+| --- | --- |
+
+| 函数 | 说明 |
+| --- | --- |
+| `setup()` | 注册 autoUpdater 事件：checking/available/not-available/error/download-progress/update-downloaded → 更新 state 并 `emit('updater:event')`；`autoDownload=false`、`autoInstallOnAppQuit=false` |
+| `check()` | 检查更新：开发模式直接返回 `{dev:true}`；打包版 `autoUpdater.checkForUpdates()` |
+| `download()` | 用户确认后 `autoUpdater.downloadUpdate()`（仅 `available` 状态） |
+| `install()` | 用户确认后 `quitAndInstall()`（仅 `downloaded` 状态，触发 before-quit 停 sidecar） |
+| `latestNotes()` | 拉取 GitHub 最新 release 说明（更新日志）：运行期缓存 + 并发去重 + 开发模式不打 API |
+| `getState()` | 返回当前状态快照 `{status, currentVersion, version, percent, error, releaseNotes}` |
+
+> **更新日志去重**：同一会话只拉一次 GitHub API（`notesCache`/`notesPromise`），避免限流。检查更新有 404 误报时按 `state.status === 'not-available'` 过滤。
+
 ---
 
 ## 5. 预加载脚本（preload.js / floating-preload.js）
@@ -520,6 +609,20 @@ save() 加密开关：
 | `qq.onNotification(cb)`      | `qq:notification` (事件) | 订阅 QQ 通知事件                                                  |
 | `qq.onStatus(cb)`            | `qq:status` (事件)    | 订阅 sidecar 状态变化                                             |
 | `qq.onError(cb)`             | `qq:error` (事件)     | 订阅错误事件                                                      |
+| `qweather.get(args)`         | `qweather:get`        | 和风 API 请求（`{endpoint, query?, lat?, lon?}`）→ `{ok, data}`  |
+| `qweather.getToken()`        | `qweather:getToken`   | 生成一次 JWT 令牌（设置面板校验/预览）                                   |
+| `qweather.genKeyPair()`      | `qweather:genKeyPair` | 生成本地 Ed25519 密钥对（`{ok, privateKey, publicKey}`）           |
+| `readDoc(name)`              | `docs:read`           | 读取协议/文档（在线缓存优先，回退内置源文件）                                   |
+| `getDocVersions()`           | `docs:getVersions`    | 在线/内置文档版本号（判断协议是否更新）                                      |
+| `onDocsUpdated(cb)`          | `docs:updated` (事件)  | 后台同步完成且有文档变化（含 changed 清单）                                  |
+| `getVersion()`               | `app:getVersion`      | 应用版本号（来自 package.json）                                     |
+| `update.check()`             | `updater:check`       | 检查更新（返回立即结果，后续状态靠 onEvent 推送）                              |
+| `update.download()`          | `updater:download`    | 用户确认后开始下载                                                   |
+| `update.install()`           | `updater:install`     | 用户确认后退出并安装                                                  |
+| `update.getState()`          | `updater:state`       | 拉取当前更新状态快照                                                  |
+| `update.releaseNotes()`      | `updater:release-notes` | 拉取 GitHub 最新 release 说明（更新日志）                              |
+| `update.onEvent(cb)`         | `updater:event` (事件)  | 订阅更新状态机事件（checking/available/progress/downloaded/not-available/error） |
+| `getCipherStatus()`          | `app:cipherStatus`    | 数据加密状态（算法/密钥保护方式，设置面板展示）                                  |
 
 ### 5.2 floating-preload.js — 浮窗窗口桥接 ★
 
@@ -543,7 +646,7 @@ save() 加密开关：
 
 ## 6. 渲染进程模块详解
 
-渲染进程共 24 个 JS 文件 + `settings/` 子目录 8 个文件，无模块系统，通过 `window.*` 命名空间通信。加载顺序严格按依赖关系排列（见 `index.html` 底部，共 30 个脚本）。
+渲染进程共 24 个 JS 文件 + `settings/` 子目录 9 个文件 + `emoji-map.js`，无模块系统，通过 `window.*` 命名空间通信。加载顺序严格按依赖关系排列（见 `index.html` 底部，共 34 个脚本）。
 
 ### 6.1 config.js — 全局配置
 
@@ -762,7 +865,28 @@ save() 加密开关：
 | `bindAutoNumber(ta, ref)` | （内部）给 textarea 绑定回车自动编号逻辑                                                  |
 | `nextLineNumber(text)`   | （内部）根据最后一行编号计算下一个编号                                                        |
 
-### 6.12 color-picker.js — 自定义颜色选择器 ★
+### 6.12 search.js — 作业搜索 ★
+
+> 暴露：`window.AppSearch`（更多菜单 → 作业搜索）
+
+从全部作业中检索并跳转，命中高亮。支持：
+
+| 能力 | 说明 |
+| --- | --- |
+| 关键词 | 匹配标题 + 内容 + 学科名，多词并关系 |
+| 筛选 | 学科胶囊过滤 + 日期范围（起止）+ **包含归档**（经 `archiveGetMonths`/`archiveLoadMonth` IPC 拉取历史） |
+| 排序 | 按日期 + 学科，`computeScore` 综合权重评分 |
+| 跳转 | 点击结果 → `goToDate()` 切换日期 → `renderAllWithAnimation` + 目标卡片高亮 |
+| 减动 | 面板基于对话框式淡入淡出（reduce-anim 下无位移动画） |
+
+| 函数 | 说明 |
+| --- | --- |
+| `openSearch()` | 打开搜索面板：重置条件 + 焦点输入框 |
+| `goToDate(date)` | 跳到某日期并刷新渲染 |
+| `openPop()` | 弹出层定位与展示 |
+| `highlight(content, kw)` | 内容命中关键词高亮（`<mark>`） |
+
+### 6.13 color-picker.js — 自定义颜色选择器 ★
 
 > 暴露：`window.ColorPicker`
 
@@ -778,7 +902,7 @@ save() 加密开关：
 | `init(triggerBtn, initialColor, onPick)`  | 绑定触发按钮，显示当前颜色，点选回调       |
 | `close()`                                | 手动关闭弹出层                  |
 
-### 6.13 archive-renderer.js — 归档视图
+### 6.14 archive-renderer.js — 归档视图
 
 > 暴露：`window.ArchiveView`
 
@@ -786,7 +910,7 @@ save() 加密开关：
 | -------------------------------- | ------------------------------------------------------ |
 | `mountArchiveView(root, onBack)` | 在指定容器内挂载只读归档视图。初始化时拉取月份列表，默认选最近月份，支持前后翻月、返回设置 |
 
-### 6.14 homework-engine.js — 作业识别引擎 ★
+### 6.15 homework-engine.js — 作业识别引擎 ★
 
 > 暴露：`window.HomeworkEngine`
 
@@ -819,7 +943,7 @@ save() 加密开关：
 
 **关键词**：用户可在设置面板自定义强/弱关键词（默认：强 = 作业/完成/上交/提交/订正/背诵/默写；弱 = 做/写/复习/预习/练习/答案）。
 
-### 6.15 qq-pending-dialog.js — 待确认作业面板 ★
+### 6.16 qq-pending-dialog.js — 待确认作业面板 ★
 
 > 暴露：`window.QQPending`
 
@@ -839,7 +963,7 @@ save() 加密开关：
 - 底部操作栏：**保存选中**（每条独立保存为新作业）/ **合并选中**（≥2 条，合并编辑后保存为一条）/ **忽略选中**（从候选队列删除）/ **关闭**（不删除候选）
 - 弹窗打开期间收到新候选，实时追加到面板（`_openDialogAppendFn` 钩子）
 
-### 6.16 backup.js — 备份与恢复（渲染层业务）★
+### 6.17 backup.js — 备份与恢复（渲染层业务）★
 
 > 暴露：`window.AppBackup`
 
@@ -878,23 +1002,24 @@ save() 加密开关：
 
 > ⚠️ 备份文件包含和风天气 JWT 私钥等敏感信息，导出弹窗中有明确提示。
 
-### 6.17 settings.js + settings/ — 设置面板 ★
+### 6.18 settings.js + settings/ — 设置面板 ★
 
-> 暴露：`window.AppSettings`（入口）+ `window.SettingsModules.*`（8 个子模块）
+> 暴露：`window.AppSettings`（入口）+ `window.SettingsModules.*`（9 个子模块）
 
-`settings.js` 是组装层：构建 `ctx` 上下文对象（state / 保存函数 / 各工具模块 / 预渲染的选项 HTML），渲染左右分栏骨架（左侧导航 + 右侧 7 个面板），再依次调用各子模块的 `render(ctx)` 与 `bind(ctx)`。
+`settings.js` 是组装层：构建 `ctx` 上下文对象（state / 保存函数 / 各工具模块 / 预渲染的选项 HTML），渲染左右分栏骨架（左侧导航 + 右侧 8 个面板），再依次调用各子模块的 `render(ctx)` 与 `bind(ctx)`。
 
-**设置面板七大分类**（对应 `settings/` 下 7 个面板模块 + nav 导航模块）：
+**设置面板八大分类**（对应 `settings/` 下 8 个面板模块 + nav 导航模块）：
 
 | 面板     | 文件                          | 配置项                                                                                     |
 | ------ | --------------------------- | --------------------------------------------------------------------------------------- |
 | 常规设置   | `settings/general.js`       | 晚修时段（实时校验）、开机自启                                                                          |
-| 天气     | `settings/weather.js`       | API 提供商切换、**城市搜索 + 列表管理（拖拽排序/删除）**、和风天气配置（Host + JWT 四字段：kid/sub/私钥，**独立弹窗**）、预警级别筛选、刷新频率/模式        |
+| 天气     | `settings/weather.js`       | API 提供商切换、**城市搜索 + 列表管理（拖拽排序/删除）**、和风天气配置（Host + JWT 四字段：kid/sub/私钥，**独立弹窗 + 一键生成密钥对**）、预警级别筛选、刷新频率/模式        |
 | 个性化    | `settings/personal.js`      | 背景来源(upx8/xxapi)、背景刷新频率/模式、立即换图、卡片列数、美化编号开关                                              |
 | 辅助功能   | `settings/accessibility.js` | **作业字号三档**（小20/中26/大32，分段控制器）、**减弱动画**（body.reduce-anim）、**三路模糊开关**（顶底栏/卡片/弹窗，即时切换 body class） |
 | 学科管理   | `settings/subjects.js`      | 学科列表（删除）、添加新学科（名称 + **ColorPicker 五色系取色器**）                                              |
 | QQ监听   | `settings/qq.js`            | 监听开关、老师联系人（昵称+学科绑定）、作业关键词（强/弱）、高级参数（扫描间隔/冷却时长）、运行状态实时展示                                  |
 | 数据管理   | `settings/data.js`          | 归档作业查看入口、**备份与恢复入口**（打开 AppBackup）、一键清空全部作业（带二次确认）                                      |
+| 关于     | `settings/about.js`         | 应用名片/版本号、**检查更新**（electron-updater 状态机交互）、**本次更新日志**、5 个协议文档入口（Markdown 弹窗）                        |
 
 **通用机制**：
 
@@ -902,7 +1027,7 @@ save() 加密开关：
 - QQ IPC 监听通过 `ctx.qqCleanup` 对象传递清理函数，设置面板关闭时卸载，避免叠加。
 - 模态叠加模式：设置面板内再打开的弹窗（和风 API 配置、备份、归档）以 `showModal(html, null, {replace:false})` 嵌套叠加。
 
-### 6.18 floating-mode.js — 主窗口侧浮窗控制 ★
+### 6.19 floating-mode.js — 主窗口侧浮窗控制 ★
 
 > 暴露：`window.FloatingMode`
 
@@ -917,7 +1042,7 @@ save() 加密开关：
 
 **已知设计限制**：浮窗内容为进入时的**快照**，主窗口改动不实时同步浮窗（退出重进才刷新）。
 
-### 6.19 floating-window.js — 浮窗窗口渲染层 ★
+### 6.20 floating-window.js — 浮窗窗口渲染层 ★
 
 > 文件：`src/scripts/floating-window.js`（由 `floating.html` 加载，不依赖主窗口脚本）
 
@@ -932,7 +1057,7 @@ save() 加密开关：
 - **双击卡片 = 贴边隐藏**。
 - **贴边探头**：`bindProbe(side, color)` 进入探头模式（探头元素显示学科色 + 方向箭头）；触屏设备点一下预展、再点滑出；鼠标设备点击直接滑出，hover 预展由主进程屏幕边缘热区轮询驱动（渲染层不绑 mouseenter/leave，避免窗口移动引发的抖动循环）。
 
-### 6.20 more-menu.js — 更多菜单 ★
+### 6.21 more-menu.js — 更多菜单 ★
 
 > 暴露：`window.AppMoreMenu`
 
@@ -942,13 +1067,13 @@ save() 加密开关：
 | `copyLayoutImage()` | 截取当前页面写入剪贴板（`page:copy` IPC），截图前隐藏浮层 |
 | `openMenu()` / `closeMenu()` | 手动控制菜单开关                            |
 
-### 6.21 window-controls.js — 自定义窗口控制 ★
+### 6.22 window-controls.js — 自定义窗口控制 ★
 
 > 暴露：无（自执行）
 
 绑定右上角自定义关闭按钮的点击事件，调用 `electronAPI.windowControls.close()`。
 
-### 6.22 datepicker.js — 日期导航
+### 6.23 datepicker.js — 日期导航
 
 > 暴露：`window.AppDatePicker`
 
@@ -958,7 +1083,7 @@ save() 加密开关：
 | `showArrows()` / `hideArrows()` / `toggle()` | 展开/收起前后翻页箭头（通过 `.date-active` 类控制） |
 | `changeDate(delta)`                          | 前后翻日期，**限制最早不超过 3 个月前**（更早提示去归档查看） |
 
-### 6.23 main.js — 渲染进程入口
+### 6.24 main.js — 渲染进程入口
 
 > 文件：`src/scripts/main.js`（非根目录 main.js）
 
@@ -1707,4 +1832,4 @@ userData/
 
 ---
 
-*文档更新时间：2026-08　|　基于源码版本 1.1.0　|　覆盖主进程模块化 / 浮窗模式 / 多城市天气 / 备份恢复 / 辅助功能等全部更新*
+*文档更新时间：2026-08　|　基于源码版本 1.0.0　|　覆盖主进程模块化 / 浮窗模式 / 多城市天气 / 备份恢复 / 辅助功能 / 作业搜索 / 自动更新 / 协议文档同步 / 和风 JWT 认证 / 首启向导 / Emoji 图标系统等全部更新*
